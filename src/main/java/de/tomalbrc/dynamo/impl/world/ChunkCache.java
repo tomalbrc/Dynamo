@@ -9,22 +9,29 @@ import de.tomalbrc.dynamo.Dynamo;
 import de.tomalbrc.dynamo.impl.physics.PhysicsThread;
 import de.tomalbrc.dynamo.impl.physics.ChunkSectionCollisionShape;
 import it.unimi.dsi.fastutil.objects.ObjectArraySet;
+import it.unimi.dsi.fastutil.objects.Reference2ReferenceOpenHashMap;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.SectionPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ChunkCache {
     private final PhysicsThread physicsThread;
     private final Map<SectionPos, CompletableFuture<PhysicsBody>> bodyMap;
     private final Set<SectionPos> dirty = new HashSet<>();
 
+    private static final Map<BlockState, VoxelShape> SHAPE_CACHE = new Reference2ReferenceOpenHashMap<>();
+
     public ChunkCache(PhysicsThread physicsThread) {
-        this.bodyMap = new HashMap<>();
+        this.bodyMap = new ConcurrentHashMap<>();
         this.physicsThread = physicsThread;
     }
 
@@ -43,14 +50,14 @@ public class ChunkCache {
                 shapeF = new EmptyShape(true);
             else shapeF = shape;
 
-            Dynamo.LOGGER.info("Adding chunk section, tri-count: {} {}", shape, pos.toShortString());
+            Dynamo.LOGGER.info("Adding chunk section, tri-count: {} {}", shape.countChildren(), pos.toShortString());
 
             var body = new PhysicsRigidBody(shapeF, 0);
             body.setKinematic(true);
             body.setFriction(1.f);
             body.setRestitution(0f);
 
-            this.physicsThread.enqueue(() -> this.physicsThread.getPhysicsSpace().addCollisionObject(body));
+            this.physicsThread.enqueue(space -> space.addCollisionObject(body));
 
             return body;
         }, Dynamo.COLLISION_GENERATOR_EXECUTOR);
@@ -72,6 +79,10 @@ public class ChunkCache {
             var blockPos = BlockPos.containing(pos.x, pos.y, pos.z);
             positions.add(blockPos);
 
+            for (Direction value : Direction.values()) {
+                positions.add(blockPos.relative(value, 16));
+            }
+
             SectionPos sectionPos = SectionPos.of(blockPos);
             var p = SectionPos.aroundChunk(sectionPos.chunk(), 1, sectionPos.y()-1, sectionPos.y()+1);
             keep.addAll(p.toList());
@@ -84,7 +95,7 @@ public class ChunkCache {
             else if (remove) {
                 var physicsBody = x.getValue().getNow(null);
                 if (physicsBody != null) {
-                    this.physicsThread.enqueue(() -> this.physicsThread.getPhysicsSpace().removeCollisionObject(physicsBody));
+                    this.physicsThread.enqueue(space -> space.removeCollisionObject(physicsBody));
                 }
             }
 
@@ -106,7 +117,7 @@ public class ChunkCache {
 
                 if (future != null) future.thenAcceptAsync((newBody) -> {
                     if (oldPhysicsBody != null)
-                        this.physicsThread.enqueue(() -> this.physicsThread.getPhysicsSpace().remove(oldPhysicsBody));
+                        this.physicsThread.enqueue(space -> space.remove(oldPhysicsBody));
                     if (didRemove) {
                         for (DynamicElement element : world.getElements()) {
                             var tr = element.physicsBody().getTransform(null).getTranslation();
@@ -130,8 +141,8 @@ public class ChunkCache {
                 var removed = fut.getNow(null);
                 fut.cancel(true);
 
-                if (removed != null) // TODO: thread!
-                    this.physicsThread.enqueue(() -> this.physicsThread.getPhysicsSpace().removeCollisionObject(removed));
+                if (removed != null)
+                    this.physicsThread.enqueue(space -> space.removeCollisionObject(removed));
             }
         });
     }

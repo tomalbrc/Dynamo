@@ -2,11 +2,14 @@ package de.tomalbrc.dynamo.impl.command;
 
 import com.mojang.brigadier.CommandDispatcher;
 import de.tomalbrc.dynamo.Dynamo;
+import de.tomalbrc.dynamo.impl.CarEntity;
+import de.tomalbrc.dynamo.impl.Entities;
 import de.tomalbrc.dynamo.impl.world.DynamicWorldContainer;
 import me.lucko.fabric.api.permissions.v0.Permissions;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.EntitySpawnReason;
 
 import static net.minecraft.commands.Commands.literal;
 
@@ -24,13 +27,40 @@ public class ModCommands {
                             var player = ctx.getSource().getPlayer();
 
                             if (player != null) {
-                                for (int i = 0; i < 200; i++) {
-                                    Dynamo.spawnFor(player);
+                                for (int i = 0; i < 100; i++) {
+                                    Dynamo.testItem(player);
                                 }
                             }
 
                             return 0;
                         });
+
+
+        rootNode.then(literal("test-item")
+                .executes(ctx -> {
+                    var player = ctx.getSource().getPlayer();
+
+                    if (player != null) {
+                        for (int i = 0; i < 50; i++) {
+                            Dynamo.testItem(player);
+                        }
+                    }
+
+                    return 0;
+                }));
+
+        rootNode.then(literal("test-block")
+                .executes(ctx -> {
+                    var player = ctx.getSource().getPlayer();
+
+                    if (player != null) {
+                        for (int i = 0; i < 50; i++) {
+                            Dynamo.testBlock(player);
+                        }
+                    }
+
+                    return 0;
+                }));
 
         rootNode.then(literal("clear")
                 .executes(ctx -> {
@@ -55,6 +85,20 @@ public class ModCommands {
                                 .append("\n")
                                 .append(Component.literal("PCO: " + world.getPhysicsSpace().getPcoList().size()));
                     }, false);
+
+                    return 0;
+                }));
+
+        rootNode.then(literal("car")
+                .executes(ctx -> {
+                    var level = ctx.getSource().getLevel();
+                    var world = ((DynamicWorldContainer) level).getDynamicWorld();
+                    var player = ctx.getSource().getPlayer();
+
+                    var car = Entities.CAR.create(level, EntitySpawnReason.COMMAND);
+                    car.setPos(player.position().add(0, 1, 0));
+                    car.setWorld(world);
+                    level.addFreshEntity(car);
 
                     return 0;
                 }));

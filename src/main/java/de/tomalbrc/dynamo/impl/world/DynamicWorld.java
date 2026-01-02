@@ -57,7 +57,7 @@ public class DynamicWorld {
     public void tick(ServerLevel serverLevel) {
         boolean skip = serverLevel.getGameTime() % 2 != 0;
         if (!skip) {
-            this.chunkCache.tick(serverLevel, this);
+            this.getPhysicsThread().enqueue(space -> this.chunkCache.tick(serverLevel, this));
             this.elements.forEach(DynamicElement::update);
         }
     }
