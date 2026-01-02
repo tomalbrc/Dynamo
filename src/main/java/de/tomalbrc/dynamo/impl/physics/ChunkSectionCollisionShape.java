@@ -45,7 +45,7 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
         for (int x = 0; x < CHUNK_SIZE_X; x++) {
             for (int yi = 0; yi < height; yi++) {
                 for (int z = 0; z < CHUNK_SIZE_Z; z++) {
-                    tmp.set(baseX + x, minY + yi, baseZ + z);
+                    tmp.set(baseX + x , minY + yi , baseZ + z );
                     BlockState st = chunk.getBlockState(tmp);
                     solid[x][yi][z] = !st.getCollisionShape(chunk, tmp).isEmpty();
                 }
