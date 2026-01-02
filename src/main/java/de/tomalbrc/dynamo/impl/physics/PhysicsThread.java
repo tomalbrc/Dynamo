@@ -23,7 +23,7 @@ public final class PhysicsThread implements AutoCloseable {
         this.thread.start();
 
         while (this.physicsSpace == null){
-            LockSupport.parkNanos(10000);
+            LockSupport.parkNanos(100_000);
         }
     }
 
