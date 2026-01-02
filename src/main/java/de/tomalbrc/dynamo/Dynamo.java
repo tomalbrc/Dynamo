@@ -64,9 +64,6 @@ public class Dynamo implements ModInitializer {
         });
 
         ServerLifecycleEvents.SERVER_STARTING.register(minecraftServer -> SERVER = minecraftServer);
-        ServerLifecycleEvents.SERVER_STOPPING.register(minecraftServer -> {
-            COLLISION_GENERATOR_EXECUTOR.shutdownNow();
-        });
 
         ServerTickEvents.START_WORLD_TICK.register(level -> {
             var world = ((DynamicWorldContainer) level).getDynamicWorld();

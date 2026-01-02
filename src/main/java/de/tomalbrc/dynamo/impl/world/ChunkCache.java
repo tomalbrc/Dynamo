@@ -8,6 +8,8 @@ import de.tomalbrc.dynamo.impl.physics.DynamicElement;
 import de.tomalbrc.dynamo.Dynamo;
 import de.tomalbrc.dynamo.impl.physics.PhysicsThread;
 import de.tomalbrc.dynamo.impl.physics.ChunkSectionCollisionShape;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.objects.ObjectArraySet;
 import it.unimi.dsi.fastutil.objects.Reference2ReferenceOpenHashMap;
 import net.minecraft.core.BlockPos;
@@ -25,25 +27,28 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class ChunkCache {
     private final PhysicsThread physicsThread;
-    private final Map<SectionPos, CompletableFuture<PhysicsBody>> bodyMap;
+    private final Map<Long, PhysicsBody> terrainObjects;
+    private final Set<Long> terrainObjectsProcessing;
+
     private final Set<SectionPos> dirty = new HashSet<>();
 
     private static final Map<BlockState, VoxelShape> SHAPE_CACHE = new Reference2ReferenceOpenHashMap<>();
 
     public ChunkCache(PhysicsThread physicsThread) {
-        this.bodyMap = new ConcurrentHashMap<>();
+        this.terrainObjects = Collections.synchronizedMap(new HashMap<>());
+        this.terrainObjectsProcessing = Collections.synchronizedSet(new LongOpenHashSet());
         this.physicsThread = physicsThread;
     }
 
     public @Nullable PhysicsBody getPhysicsBody(SectionPos pos) {
-        return bodyMap.get(pos).getNow(null);
+        return terrainObjects.get(pos);
     }
 
-    public CompletableFuture<PhysicsBody> addSectionPhysics(LevelChunk chunk, SectionPos pos) {
+    public void addSectionPhysics(LevelChunk chunk, SectionPos pos) {
         if (!chunk.isInsideBuildHeight(pos.maxBlockY()) || !chunk.isInsideBuildHeight(pos.minBlockY()))
-            return null;
+            return;
 
-        CompletableFuture<PhysicsBody> future = CompletableFuture.supplyAsync(() -> {
+        this.physicsThread.enqueue(space -> {
             CollisionShape shapeF;
             ChunkSectionCollisionShape shape = new ChunkSectionCollisionShape(chunk, pos);
             if (shape.countChildren() == 0)
@@ -57,14 +62,11 @@ public class ChunkCache {
             body.setFriction(1.f);
             body.setRestitution(0f);
 
-            this.physicsThread.enqueue(space -> space.addCollisionObject(body));
+            space.addCollisionObject(body);
 
-            return body;
-        }, Dynamo.COLLISION_GENERATOR_EXECUTOR);
-
-        this.bodyMap.put(pos, future);
-
-        return future;
+            this.terrainObjects.put(pos.asLong(), body);
+            this.terrainObjectsProcessing.remove(pos.asLong());
+        });
     }
 
     public void tick(ServerLevel level, DynamicWorld world) {
@@ -84,50 +86,45 @@ public class ChunkCache {
             }
 
             SectionPos sectionPos = SectionPos.of(blockPos);
-            var p = SectionPos.aroundChunk(sectionPos.chunk(), 1, sectionPos.y()-1, sectionPos.y()+1);
-            keep.addAll(p.toList());
+            var rad = 1;
+            var p = SectionPos.aroundChunk(sectionPos.chunk(), rad, sectionPos.y()-rad, sectionPos.y()+rad);
+            p.forEach(x -> positions.add(x.center()));
+            //keep.addAll(p.toList());
         }
 
-        this.bodyMap.entrySet().removeIf(x -> {
-            var remove = !keep.contains(x.getKey());
-            if (remove && !x.getValue().isDone())
-                x.getValue().cancel(true);
-            else if (remove) {
-                var physicsBody = x.getValue().getNow(null);
-                if (physicsBody != null) {
-                    this.physicsThread.enqueue(space -> space.removeCollisionObject(physicsBody));
-                }
-            }
-
-            return remove;
-        });
+//        this.terrainObjects.entrySet().removeIf(x -> {
+//            var remove = !keep.contains(x.getKey());
+//            if (remove) {
+//                var physicsBody = x.getValue();
+//                if (physicsBody != null) {
+//                    this.physicsThread.enqueue(space -> space.removeCollisionObject(physicsBody));
+//                }
+//            }
+//
+//            return remove;
+//        });
 
         for (BlockPos blockPos : positions) {
             SectionPos sectionPos = SectionPos.of(blockPos);
 
-            if (!this.bodyMap.containsKey(sectionPos) || this.dirty.contains(sectionPos)) {
-                var oldFuture = this.bodyMap.get(SectionPos.of(blockPos));
+            if ((!this.terrainObjects.containsKey(sectionPos.asLong()) && !this.terrainObjectsProcessing.contains(sectionPos.asLong())) || this.dirty.contains(sectionPos)) {
+                var oldPhysicsBody = this.terrainObjects.get(SectionPos.of(blockPos).asLong());
 
-                var future = this.addSectionPhysics(level.getChunkAt(blockPos), sectionPos);
+                this.terrainObjectsProcessing.add(sectionPos.asLong());
+                this.addSectionPhysics(level.getChunkAt(blockPos), sectionPos);
                 boolean didRemove = this.dirty.remove(sectionPos);
 
-                var oldPhysicsBody = oldFuture == null ? null : oldFuture.getNow(null);
-                if (oldFuture != null)
-                    oldFuture.cancel(true);
-
-                if (future != null) future.thenAcceptAsync((newBody) -> {
-                    if (oldPhysicsBody != null)
-                        this.physicsThread.enqueue(space -> space.remove(oldPhysicsBody));
-                    if (didRemove) {
-                        for (DynamicElement element : world.getElements()) {
-                            var tr = element.physicsBody().getTransform(null).getTranslation();
-                            var x = blockPos.distToCenterSqr(tr.x, tr.y, tr.z);
-                            if (x < 3f) {
-                                element.physicsBody().activate(false);
-                            }
+                if (oldPhysicsBody != null)
+                    this.physicsThread.enqueue(space -> space.remove(oldPhysicsBody));
+                if (didRemove) {
+                    for (DynamicElement element : world.getElements()) {
+                        var tr = element.physicsBody().getTransform(null).getTranslation();
+                        var x = blockPos.distToCenterSqr(tr.x, tr.y, tr.z);
+                        if (x < 3f) {
+                            element.physicsBody().activate(false);
                         }
                     }
-                }, Dynamo.SERVER);
+                }
             }
         }
     }
@@ -136,13 +133,9 @@ public class ChunkCache {
         // TODO: keep cached longer?
         var p = SectionPos.aroundChunk(chunk.getPos(), 0, 0, 32);
         p.forEach(x -> {
-            var fut = this.bodyMap.remove(x);
-            if (fut != null) {
-                var removed = fut.getNow(null);
-                fut.cancel(true);
-
-                if (removed != null)
-                    this.physicsThread.enqueue(space -> space.removeCollisionObject(removed));
+            var physicsBody = this.terrainObjects.remove(x.asLong());
+            if (physicsBody != null) {
+                this.physicsThread.enqueue(space -> space.removeCollisionObject(physicsBody));
             }
         });
     }

@@ -1,17 +1,23 @@
 package de.tomalbrc.dynamo.impl;
 
-import com.jme3.bullet.collision.shapes.BoxCollisionShape;
-import com.jme3.bullet.collision.shapes.CollisionShape;
-import com.jme3.bullet.collision.shapes.HullCollisionShape;
+import com.jme3.bullet.collision.shapes.*;
+import com.jme3.bullet.objects.PhysicsRigidBody;
 import com.jme3.bullet.objects.PhysicsVehicle;
+import com.jme3.math.Quaternion;
+import de.tomalbrc.dynamo.api.event.ServerEvents;
 import de.tomalbrc.dynamo.impl.physics.DynamicElement;
 import de.tomalbrc.dynamo.impl.world.DynamicWorld;
 import eu.pb4.polymer.core.api.entity.PolymerEntity;
 import eu.pb4.polymer.virtualentity.api.ElementHolder;
 import eu.pb4.polymer.virtualentity.api.attachment.EntityAttachment;
 import eu.pb4.polymer.virtualentity.api.elements.ItemDisplayElement;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.DustParticleOptions;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -51,7 +57,9 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
         e = new ItemDisplayElement(Items.DIAMOND_BLOCK);
         e.setTeleportDuration(2);
         e.setInterpolationDuration(2);
-        e.setScale(new Vector3f(2.5f, 1.7f, 2.8f));
+        e.setScale(new Vector3f(1.25f
+        , 0.5f,
+        2.5f));
 
         this.holder = new ElementHolder();
         this.holder.addElement(e);
@@ -69,94 +77,65 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
     public void setWorld(DynamicWorld world) {
         this.world = world;
         if (this.vehicle == null) {
-            /*
-             * 1. THE SHAPE
-             * Switched to BoxCollisionShape.
-             * Dimensions are Half-Extents (distance from center to edge).
-             * 1.25m wide (2.5m total), 0.5m high (1m total), 2.5m long (5m total).
-             */
+            // --- 1. DEFINE THE CHASSIS SHAPE ---
             float halfWidth = 1.25f;
             float halfHeight = 0.5f;
-            float halfLength = 2.5f;
+            float halfLength = 1.0f;
+            CollisionShape boxShape = new BoxCollisionShape(new com.jme3.math.Vector3f(halfWidth, halfHeight, halfLength));
+            float coMOffset = 1.1f;
 
-            // Ensure you have the correct import for BoxCollisionShape
-            CollisionShape boxShape = new BoxCollisionShape(
-                    new com.jme3.math.Vector3f(halfWidth, halfHeight, halfLength)
-            );
+            CompoundCollisionShape chassisShape = new CompoundCollisionShape();
+            com.jme3.math.Vector3f boxLocalPos = new com.jme3.math.Vector3f(0, coMOffset, 0);
+            chassisShape.addChildShape(boxShape, boxLocalPos);
 
-            /*
-             * 2. THE PHYSICS BODY
-             * Increased mass to 800kg for better simulation stability.
-             */
-            float mass = 800f;
-            PhysicsVehicle vehicle = new PhysicsVehicle(boxShape, mass);
+            float mass = 1000f;
+            PhysicsVehicle vehicle = new PhysicsVehicle(chassisShape, mass);
 
-            /*
-             * 3. SUSPENSION TUNING FOR VOXELS
-             * Voxel terrain is harsh. We need soft springs with HIGH damping.
-             */
-            // Stiffness: ~20.0 allows the wheel to move up when hitting a block
-            // without launching the whole car into the air immediately.
-            vehicle.setSuspensionStiffness(20.0f);
+            world.getPhysicsSpace().addTickListener((world1) -> {
 
-            // Compression: Resists the wheel moving up.
-            // Keep this moderate so the wheel CAN move up over a block.
-            vehicle.setSuspensionCompression(3.0f);
+            });
 
-            // Damping: Resists the wheel moving down (rebound).
-            // HIGH value here is critical to stop the car from bouncing
-            // after dropping down a block height.
-            vehicle.setSuspensionDamping(4.0f);
+            vehicle.setSuspensionStiffness(100.0f);
+            vehicle.setSuspensionCompression(30.0f);
+            vehicle.setSuspensionDamping(7.0f);
+            vehicle.setFrictionSlip(3.0f);
 
-            // Friction: Grip. Too high on blocks = climbing walls.
-            vehicle.setFrictionSlip(2.5f);
+            vehicle.setAngularDamping(0);
+            vehicle.setAngularFactor(1f);
 
-            // Optional: If your API supports it, set MaxSuspensionTravelCm to 100f (1 block)
-            // vehicle.setMaxSuspensionTravelCm(100f);
+            float yWheelPos = coMOffset; // relative to com
 
-            /*
-             * 4. WHEEL CONFIGURATION
-             */
             boolean front = true;
             boolean rear = false;
-
-            // Move wheels slightly outside the box width for stability (Wide stance)
-            float xOffset = halfWidth * 1.1f;
-
-            // Move axles towards the ends of the chassis
+            float xOffset = halfWidth * 1.0f;
             float frontAxleZ = halfLength * 0.8f;
-            float rearAxleZ = -halfLength * 0.8f;
-
-            // Radius: 0.75f (1.5 blocks high) is much safer than 2.5f.
-            float radius = 0.75f;
-
-            // Rest Length: Needs to be long enough to handle a 1-block drop.
+            float rearAxleZ = -halfLength * 1.2f;
+            float radius = 0.4f;
             float restLength = 1.2f;
 
-            com.jme3.math.Vector3f axleDirection = new com.jme3.math.Vector3f(-1f, 0f, 0f);
-            com.jme3.math.Vector3f suspensionDirection = new com.jme3.math.Vector3f(0f, -1f, 0f);
+            com.jme3.math.Vector3f axleDirection = new com.jme3.math.Vector3f(-1, 0, 0);
+            com.jme3.math.Vector3f suspensionDirection = new com.jme3.math.Vector3f(0, -1, 0);
 
-            // Add 4 wheels
-            vehicle.addWheel(new com.jme3.math.Vector3f(-xOffset, 0f, frontAxleZ),
+            vehicle.addWheel(new com.jme3.math.Vector3f(-xOffset, yWheelPos, frontAxleZ),
                     suspensionDirection, axleDirection, restLength, radius, front);
-            vehicle.addWheel(new com.jme3.math.Vector3f(xOffset, 0f, frontAxleZ),
+            vehicle.addWheel(new com.jme3.math.Vector3f(xOffset, yWheelPos, frontAxleZ),
                     suspensionDirection, axleDirection, restLength, radius, front);
-            vehicle.addWheel(new com.jme3.math.Vector3f(-xOffset, 0f, rearAxleZ),
+            vehicle.addWheel(new com.jme3.math.Vector3f(-xOffset, yWheelPos, rearAxleZ),
                     suspensionDirection, axleDirection, restLength, radius, rear);
-            vehicle.addWheel(new com.jme3.math.Vector3f(xOffset, 0f, rearAxleZ),
+            vehicle.addWheel(new com.jme3.math.Vector3f(xOffset, yWheelPos, rearAxleZ),
                     suspensionDirection, axleDirection, restLength, radius, rear);
 
-            this.vehicle = vehicle;
-            this.vehicle.setPhysicsLocation(new com.jme3.math.Vector3f((float)getX(), (float)getY(), (float)getZ()));
-            world.getPhysicsThread().enqueue(space -> space.add(this.vehicle));
+            vehicle.setPhysicsLocation(new com.jme3.math.Vector3f((float)getX(), (float)getY(), (float)getZ()));
+            world.getPhysicsThread().enqueue(space -> {
+                space.add(vehicle);
+                this.vehicle = vehicle;
+            });
 
-            // Visuals
-            for (int i = 0; i < this.vehicle.getNumWheels(); i++) {
+            for (int i = 0; i < vehicle.getNumWheels(); i++) {
                 var e = new ItemDisplayElement(Items.DIAMOND_BLOCK);
                 e.setTeleportDuration(2);
                 e.setInterpolationDuration(2);
-                // Scale visual to match physics radius roughly (optional tweak)
-                e.setScale(new Vector3f(1.0f));
+                e.setScale(new Vector3f(radius+0.2f));
                 this.holder.addElement(e);
                 this.wheels.add(e);
             }
@@ -182,8 +161,22 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
 
             if (this.isVehicle() && this.getFirstPassenger() instanceof ServerPlayer player) {
                 var input = getInput(player);
-                this.vehicle.accelerate((float) input.z*500f);
+                this.vehicle.accelerate((float) input.z*1000f);
                 this.vehicle.steer((float) input.x*45f);
+
+                if (player.getLastClientInput().jump()) {
+                    this.vehicle.brake(0.5f);
+                    for (int i = 0; i < this.vehicle.getNumWheels(); i++) {
+                        var wheel = this.vehicle.getWheel(i);
+
+                        var axle = wheel.getWheelWorldLocation(null);
+
+                        var state = level().getBlockState(BlockPos.containing(axle.x, axle.y - 0.1, axle.z));
+                        if (state.isSolid()) {
+                            ((ServerLevel)level()).sendParticles(new DustParticleOptions(0,1), axle.x, axle.y, axle.z, 10, 0.1f, 0.1f, 0.1f, 0.11);
+                        }
+                    }
+                }
             }
 
             for (int i = 0; i < this.vehicle.getNumWheels(); i++) {
@@ -226,5 +219,9 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
     @Override
     public @NotNull HumanoidArm getMainArm() {
         return HumanoidArm.LEFT;
+    }
+
+    public void reset() {
+        this.world.getPhysicsThread().enqueue(space -> vehicle.setPhysicsRotation(Quaternion.IDENTITY));
     }
 }
