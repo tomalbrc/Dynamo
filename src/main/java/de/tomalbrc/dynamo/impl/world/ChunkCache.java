@@ -1,6 +1,8 @@
 package de.tomalbrc.dynamo.impl.world;
 
 import com.jme3.bullet.PhysicsSpace;
+import com.jme3.bullet.collision.shapes.CollisionShape;
+import com.jme3.bullet.collision.shapes.EmptyShape;
 import com.jme3.bullet.objects.PhysicsBody;
 import com.jme3.bullet.objects.PhysicsRigidBody;
 import com.jme3.math.Vector3f;
@@ -36,8 +38,11 @@ public class ChunkCache {
             return null;
 
         CompletableFuture<PhysicsBody> future = CompletableFuture.supplyAsync(() -> {
-            var shape = new ChunkSectionCollisionShape(chunk, pos);
-            Dynamo.LOGGER.info("Adding chunk section, count: {} {}", shape.countChildren(), pos.toShortString());
+            CollisionShape shape = ChunkSectionCollisionShape.shape(chunk, pos);
+            if (shape == null)
+                shape = new EmptyShape(true);
+
+            Dynamo.LOGGER.info("Adding chunk section, tri-count: {} {}", shape, pos.toShortString());
 
             var body = new PhysicsRigidBody(shape, 0);
             body.setFriction(1.f);
