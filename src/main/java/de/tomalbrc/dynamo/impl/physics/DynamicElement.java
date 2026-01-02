@@ -1,4 +1,4 @@
-package de.tomalbrc.dynamo;
+package de.tomalbrc.dynamo.impl.physics;
 
 import com.jme3.bullet.objects.PhysicsBody;
 

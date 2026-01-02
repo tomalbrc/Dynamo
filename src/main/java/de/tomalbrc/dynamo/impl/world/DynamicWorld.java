@@ -1,9 +1,8 @@
 package de.tomalbrc.dynamo.impl.world;
 
 import com.jme3.bullet.PhysicsSpace;
-import com.jme3.bullet.RayTestFlag;
-import de.tomalbrc.dynamo.DynamicElement;
-import de.tomalbrc.dynamo.Dynamo;
+import de.tomalbrc.dynamo.impl.physics.DynamicElement;
+import de.tomalbrc.dynamo.impl.physics.PhysicsThread;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.server.level.ServerLevel;
@@ -17,18 +16,26 @@ import java.util.Set;
 public class DynamicWorld {
     protected final ChunkCache chunkCache;
     protected final HashSet<DynamicElement> elements = new HashSet<>();
+
+    protected final PhysicsThread physicsThread;
     protected final PhysicsSpace physicsSpace;
 
     public DynamicWorld() {
-        this.physicsSpace = new PhysicsSpace(PhysicsSpace.BroadphaseType.DBVT);
-        this.physicsSpace.setMaxSubSteps(6);
+        this.physicsThread = new PhysicsThread();
+        this.physicsSpace = this.getPhysicsThread().getPhysicsSpace();
+        this.physicsSpace.setMaxSubSteps(4);
         this.physicsSpace.setAccuracy(1f/60f);
 
-        this.chunkCache = new ChunkCache(physicsSpace);
+        this.chunkCache = new ChunkCache(this.physicsThread);
     }
 
     public PhysicsSpace getPhysicsSpace() {
         return this.physicsSpace;
+    }
+
+    public void close() {
+        this.physicsThread.close();
+        this.physicsSpace.destroy();
     }
 
     public void addElement(DynamicElement element) {
@@ -48,14 +55,14 @@ public class DynamicWorld {
     }
 
     public void tick(ServerLevel serverLevel) {
-        Dynamo.PHYSICS_EXECUTOR.execute(() -> {
-            this.physicsSpace.update(serverLevel.tickRateManager().millisecondsPerTick()/1000f, 3);
-        });
-
         boolean skip = serverLevel.getGameTime() % 2 != 0;
         if (!skip) {
-            this.chunkCache.tick(serverLevel, this.elements);
+            this.chunkCache.tick(serverLevel, this);
             this.elements.forEach(DynamicElement::update);
         }
+    }
+
+    public PhysicsThread getPhysicsThread() {
+        return physicsThread;
     }
 }

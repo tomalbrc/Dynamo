@@ -1,13 +1,13 @@
 package de.tomalbrc.dynamo.impl.world;
 
-import com.jme3.bullet.PhysicsSpace;
 import com.jme3.bullet.collision.shapes.CollisionShape;
 import com.jme3.bullet.collision.shapes.EmptyShape;
 import com.jme3.bullet.objects.PhysicsBody;
 import com.jme3.bullet.objects.PhysicsRigidBody;
-import de.tomalbrc.dynamo.DynamicElement;
+import de.tomalbrc.dynamo.impl.physics.DynamicElement;
 import de.tomalbrc.dynamo.Dynamo;
-import de.tomalbrc.dynamo.impl.geo.ChunkSectionCollisionShape;
+import de.tomalbrc.dynamo.impl.physics.PhysicsThread;
+import de.tomalbrc.dynamo.impl.physics.ChunkSectionCollisionShape;
 import it.unimi.dsi.fastutil.objects.ObjectArraySet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
@@ -19,20 +19,20 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
 public class ChunkCache {
-    private final PhysicsSpace physicsSpace;
+    private final PhysicsThread physicsThread;
     private final Map<SectionPos, CompletableFuture<PhysicsBody>> bodyMap;
     private final Set<SectionPos> dirty = new HashSet<>();
 
-    public ChunkCache(PhysicsSpace physicsSpace) {
+    public ChunkCache(PhysicsThread physicsThread) {
         this.bodyMap = new HashMap<>();
-        this.physicsSpace = physicsSpace;
+        this.physicsThread = physicsThread;
     }
 
     public @Nullable PhysicsBody getPhysicsBody(SectionPos pos) {
         return bodyMap.get(pos).getNow(null);
     }
 
-    public CompletableFuture<PhysicsBody> add(LevelChunk chunk, SectionPos pos) {
+    public CompletableFuture<PhysicsBody> addSectionPhysics(LevelChunk chunk, SectionPos pos) {
         if (!chunk.isInsideBuildHeight(pos.maxBlockY()) || !chunk.isInsideBuildHeight(pos.minBlockY()))
             return null;
 
@@ -45,14 +45,12 @@ public class ChunkCache {
 
             Dynamo.LOGGER.info("Adding chunk section, tri-count: {} {}", shape, pos.toShortString());
 
-            var body = new PhysicsRigidBody(shape, 0);
+            var body = new PhysicsRigidBody(shapeF, 0);
             body.setKinematic(true);
             body.setFriction(1.f);
             body.setRestitution(0f);
 
-            Dynamo.PHYSICS_EXECUTOR.execute(() -> {
-                this.physicsSpace.addCollisionObject(body);
-            });
+            this.physicsThread.enqueue(() -> this.physicsThread.getPhysicsSpace().addCollisionObject(body));
 
             return body;
         }, Dynamo.COLLISION_GENERATOR_EXECUTOR);
@@ -62,11 +60,11 @@ public class ChunkCache {
         return future;
     }
 
-    public void tick(ServerLevel level, Collection<DynamicElement> elements) {
+    public void tick(ServerLevel level, DynamicWorld world) {
         Set<BlockPos> positions = new ObjectArraySet<>();
         Set<SectionPos> keep = new ObjectArraySet<>();
 
-        for (var e : elements) {
+        for (var e : world.getElements()) {
             var physicsBody = e.physicsBody();
 
             var transform = physicsBody.getTransform(null);
@@ -86,9 +84,7 @@ public class ChunkCache {
             else if (remove) {
                 var physicsBody = x.getValue().getNow(null);
                 if (physicsBody != null) {
-                    Dynamo.PHYSICS_EXECUTOR.execute(() -> {
-                        this.physicsSpace.removeCollisionObject(physicsBody);
-                    });
+                    this.physicsThread.enqueue(() -> this.physicsThread.getPhysicsSpace().removeCollisionObject(physicsBody));
                 }
             }
 
@@ -101,7 +97,7 @@ public class ChunkCache {
             if (!this.bodyMap.containsKey(sectionPos) || this.dirty.contains(sectionPos)) {
                 var oldFuture = this.bodyMap.get(SectionPos.of(blockPos));
 
-                var future = this.add(level.getChunkAt(blockPos), sectionPos);
+                var future = this.addSectionPhysics(level.getChunkAt(blockPos), sectionPos);
                 boolean didRemove = this.dirty.remove(sectionPos);
 
                 var oldPhysicsBody = oldFuture == null ? null : oldFuture.getNow(null);
@@ -110,9 +106,9 @@ public class ChunkCache {
 
                 if (future != null) future.thenAcceptAsync((newBody) -> {
                     if (oldPhysicsBody != null)
-                        this.physicsSpace.remove(oldPhysicsBody);
+                        this.physicsThread.enqueue(() -> this.physicsThread.getPhysicsSpace().remove(oldPhysicsBody));
                     if (didRemove) {
-                        for (DynamicElement element : elements) {
+                        for (DynamicElement element : world.getElements()) {
                             var tr = element.physicsBody().getTransform(null).getTranslation();
                             var x = blockPos.distToCenterSqr(tr.x, tr.y, tr.z);
                             if (x < 3f) {
@@ -135,13 +131,9 @@ public class ChunkCache {
                 fut.cancel(true);
 
                 if (removed != null) // TODO: thread!
-                    this.physicsSpace.removeCollisionObject(removed);
+                    this.physicsThread.enqueue(() -> this.physicsThread.getPhysicsSpace().removeCollisionObject(removed));
             }
         });
-    }
-
-    public void remove(PhysicsBody body) {
-        this.physicsSpace.removeCollisionObject(body);
     }
 
     public void markDirty(SectionPos of) {
