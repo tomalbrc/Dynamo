@@ -2,7 +2,10 @@ package de.tomalbrc.dynamo.impl.physics;
 
 import com.jme3.bullet.collision.shapes.BoxCollisionShape;
 import com.jme3.bullet.collision.shapes.CompoundCollisionShape;
+import com.jme3.bullet.collision.shapes.MeshCollisionShape;
+import com.jme3.bullet.collision.shapes.infos.IndexedMesh;
 import com.jme3.math.Vector3f;
+import com.jme3.util.BufferUtils;
 import de.tomalbrc.dynamo.Dynamo;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
@@ -47,6 +50,22 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
                 }
             }
         }
+
+        var mesh = ChunkMeshGenerator.generateMesh(solid);
+        if (mesh.vertices.isEmpty())
+            return;
+
+        float[] v = new float[mesh.vertices.size()];
+        for (int i = 0; i < mesh.vertices.size(); i += 3) {
+            v[i+0] = mesh.vertices.get(i    ) +   pos.getX()*16;
+            v[i+1] = mesh.vertices.get(i + 1) +   pos.getY()*16;
+            v[i+2] = mesh.vertices.get(i + 2) +   pos.getZ()*16;
+        }
+
+        IndexedMesh indexedMesh = new IndexedMesh(BufferUtils.createFloatBuffer(v));
+        this.addChildShape(new MeshCollisionShape(true, indexedMesh));
+
+        if (true) return;
 
         List<int[]> candidates = new ArrayList<>();
         for (int x = 1; x < CHUNK_SIZE_X - 1; x++) {

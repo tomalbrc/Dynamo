@@ -90,11 +90,6 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
 
             float mass = 1000f;
             PhysicsVehicle vehicle = new PhysicsVehicle(chassisShape, mass);
-
-            world.getPhysicsSpace().addTickListener((world1) -> {
-
-            });
-
             vehicle.setSuspensionStiffness(100.0f);
             vehicle.setSuspensionCompression(30.0f);
             vehicle.setSuspensionDamping(7.0f);
