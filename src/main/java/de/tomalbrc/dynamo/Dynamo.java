@@ -69,8 +69,11 @@ public class Dynamo implements ModInitializer {
         var level = player.level();
         var world = ((DynamicWorldContainer)level).getDynamicWorld();
 
-        var body = new PhysicsRigidBody(new BoxCollisionShape(0.5f));
-        body.setPhysicsTransform(new Transform(new Vector3f((float)player.position().x, (float)player.position().y, (float)player.position().z), Quaternion.IDENTITY));
+        var body = new PhysicsRigidBody(new BoxCollisionShape(0.5f), 0.5f);
+        body.setFriction(1.f);
+        body.setRestitution(0.f);
+        var bodyPos = player.position().offsetRandom(player.getRandom(), 1.5f).toVector3f();
+        body.setPhysicsTransform(new Transform(new Vector3f(bodyPos.x, bodyPos.y, bodyPos.z), Quaternion.IDENTITY));
 
         ((DynamicWorldContainer) level).getDynamicWorld().getPhysicsSpace().addCollisionObject(body);
 

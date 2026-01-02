@@ -1,164 +1,141 @@
 package de.tomalbrc.dynamo.impl.geo;
 
-import com.jme3.bullet.collision.shapes.MeshCollisionShape;
-import com.jme3.bullet.collision.shapes.infos.IndexedMesh;
+import com.jme3.bullet.collision.shapes.BoxCollisionShape;
+import com.jme3.bullet.collision.shapes.CompoundCollisionShape;
 import com.jme3.math.Vector3f;
-import com.jme3.util.BufferUtils;
+import de.tomalbrc.dynamo.Dynamo;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 
-import java.util.ArrayList;
-import java.util.List;
+public class ChunkSectionCollisionShape extends CompoundCollisionShape {
+    private final SectionPos pos;
 
-public class ChunkSectionCollisionShape extends MeshCollisionShape {
-    static final int SIZE = 16;
+    static final int CHUNK_SIZE_X = 16;
+    static final int CHUNK_SIZE_Z = 16;
 
-    public static ChunkSectionCollisionShape shape(LevelChunk chunk, SectionPos sectionPos) {
-        IndexedMesh mesh = createGreedyMesh(chunk, sectionPos);
-        return mesh != null ? new ChunkSectionCollisionShape(mesh) : null;
+    public ChunkSectionCollisionShape(LevelChunk chunk, SectionPos sectionPos) {
+        this.pos = sectionPos;
+        buildChunkCollisionShape(chunk);
     }
 
-    private ChunkSectionCollisionShape(IndexedMesh mesh) {
-        super(true, mesh);
-    }
+    public void buildChunkCollisionShape(LevelChunk chunk) {
+        int baseX = pos.minBlockX();
+        int baseZ = pos.minBlockZ();
+        int minY = pos.minBlockY();
+        int maxY = pos.maxBlockY()+1;
+        int height = maxY - minY;
+        if (height <= 0)
+            return;
 
-    private static IndexedMesh createGreedyMesh(LevelChunk chunk, SectionPos sectionPos) {
-        int baseX = sectionPos.minBlockX();
-        int baseY = sectionPos.minBlockY();
-        int baseZ = sectionPos.minBlockZ();
-
-        boolean[][][] solid = new boolean[SIZE][SIZE][SIZE];
+        // solidity [x][yi][z] (yi = y - minY)
+        boolean[][][] solid = new boolean[CHUNK_SIZE_X][height][CHUNK_SIZE_Z];
         BlockPos.MutableBlockPos tmp = new BlockPos.MutableBlockPos();
-        boolean hasAny = false;
-
-        for (int x = 0; x < SIZE; x++) {
-            for (int y = 0; y < SIZE; y++) {
-                for (int z = 0; z < SIZE; z++) {
-                    tmp.set(baseX + x, baseY + y, baseZ + z);
+        for (int x = 0; x < CHUNK_SIZE_X; x++) {
+            for (int yi = 0; yi < height; yi++) {
+                for (int z = 0; z < CHUNK_SIZE_Z; z++) {
+                    tmp.set(baseX + x, minY + yi, baseZ + z);
                     BlockState st = chunk.getBlockState(tmp);
-                    boolean isSolid = !st.getCollisionShape(chunk, tmp).isEmpty();
-                    solid[x][y][z] = isSolid;
-                    hasAny |= isSolid;
+                    solid[x][yi][z] = !st.getCollisionShape(chunk, tmp).isEmpty();
                 }
             }
         }
 
-        if (!hasAny) return null;
+        // avoid duplicating voxels in multiple boxes
+        boolean[][][] used = new boolean[CHUNK_SIZE_X][height][CHUNK_SIZE_Z];
 
-        List<Float> verts = new ArrayList<>();
-        List<Integer> indices = new ArrayList<>();
+        int boxesAdded = 0;
 
-        // Sweep over 3 axes (d=0:X, d=1:Y, d=2:Z)
-        for (int d = 0; d < 3; d++) {
-            int u = (d + 1) % 3; // axis 1
-            int v = (d + 2) % 3; // axis 2
-            int[] x = new int[3];
-            int[] q = new int[3];
-            q[d] = 1;
+        // mask for greedy 2D packing per layer: mask[z][x]
+        boolean[][] mask = new boolean[CHUNK_SIZE_Z][CHUNK_SIZE_X];
 
-            // Mask contains direction of the face (-1 or 1)
-            int[] mask = new int[SIZE * SIZE];
-
-            for (x[d] = -1; x[d] < SIZE; ) {
-                int n = 0;
-                // Compute mask for this slice
-                for (x[v] = 0; x[v] < SIZE; x[v]++) {
-                    for (x[u] = 0; x[u] < SIZE; x[u]++) {
-                        boolean blockCurrent = (x[d] >= 0) && solid[x[0]][x[1]][x[2]];
-                        boolean blockNeighbor = (x[d] < SIZE - 1) && solid[x[0] + q[0]][x[1] + q[1]][x[2] + q[2]];
-
-                        if (blockCurrent == blockNeighbor) {
-                            mask[n++] = 0;
-                        } else {
-                            mask[n++] = blockCurrent ? 1 : -1;
-                        }
-                    }
+        // For each y we add axis-aligned rectangles on the xz plane
+        for (int yi = 0; yi < height; yi++) {
+            // mask cells that are solid and not used
+            for (int z = 0; z < CHUNK_SIZE_Z; z++) {
+                for (int x = 0; x < CHUNK_SIZE_X; x++) {
+                    mask[z][x] = solid[x][yi][z] && !used[x][yi][z];
                 }
+            }
 
-                x[d]++;
-                n = 0;
-                // Generate quads from mask
-                for (int j = 0; j < SIZE; j++) {
-                    for (int i = 0; i < SIZE; ) {
-                        int type = mask[n];
-                        if (type != 0) {
-                            int w, h;
-                            // Calculate width
-                            for (w = 1; i + w < SIZE && mask[n + w] == type; w++) ;
+            // greedy rect packing on mask, rows=z cols=x
+            for (int z = 0; z < CHUNK_SIZE_Z; z++) {
+                for (int x = 0; x < CHUNK_SIZE_X; x++) {
+                    if (!mask[z][x]) continue;
 
-                            // Calculate height
-                            boolean done = false;
-                            for (h = 1; j + h < SIZE; h++) {
-                                for (int k = 0; k < w; k++) {
-                                    if (mask[n + k + h * SIZE] != type) {
-                                        done = true; break;
-                                    }
-                                }
-                                if (done) break;
-                            }
+                    // find width along +X
+                    int w = 1;
+                    while (x + w < CHUNK_SIZE_X && mask[z][x + w]) w++;
 
-                            // Add Quad
-                            x[u] = i; x[v] = j;
-                            int[] du = new int[3]; du[u] = w;
-                            int[] dv = new int[3]; dv[v] = h;
+                    // find height along +Z: the maximum number of rows we can extend
+                    int h = 1;
+                    outer:
+                    while (z + h < CHUNK_SIZE_Z) {
+                        for (int k = 0; k < w; k++) {
+                            if (!mask[z + h][x + k]) break outer;
+                        }
+                        h++;
+                    }
 
-                            addQuad(verts, indices,
-                                    new float[]{baseX + x[0], baseY + x[1], baseZ + x[2]},
-                                    new float[]{du[0], du[1], du[2]},
-                                    new float[]{dv[0], dv[1], dv[2]},
-                                    type > 0);
-
-                            // Clear mask for this quad
-                            for (int l = 0; l < h; l++) {
-                                for (int k = 0; k < w; k++) {
-                                    mask[n + k + l * SIZE] = 0;
-                                }
-                            }
-                            i += w; n += w;
-                        } else {
-                            i++; n++;
+                    // Mark the mask cells consumed for this rectangle
+                    for (int dz = 0; dz < h; dz++) {
+                        for (int dx = 0; dx < w; dx++) {
+                            mask[z + dz][x + dx] = false;
                         }
                     }
+
+                    // Now we have a rectangle at layer yi: x in [x, x+w), z in [z, z+h)
+                    int rectX0 = x;
+                    int rectX1 = x + w; // exclusive
+                    int rectZ0 = z;
+                    int rectZ1 = z + h; // exclusive
+
+                    // Try to grow this rectangle vertically (along Y) as far as possible
+                    int boxHeight = 1;
+                    vertical:
+                    while (yi + boxHeight < height) {
+                        for (int zz = rectZ0; zz < rectZ1; zz++) {
+                            for (int xx = rectX0; xx < rectX1; xx++) {
+                                if (!solid[xx][yi + boxHeight][zz] || used[xx][yi + boxHeight][zz]) {
+                                    break vertical;
+                                }
+                            }
+                        }
+                        boxHeight++;
+                    }
+
+                    // Mark all voxels covered by the final box as used
+                    for (int by = 0; by < boxHeight; by++) {
+                        for (int zz = rectZ0; zz < rectZ1; zz++) {
+                            for (int xx = rectX0; xx < rectX1; xx++) {
+                                used[xx][yi + by][zz] = true;
+                            }
+                        }
+                    }
+
+                    // Create one BoxCollisionShape for that box
+                    float sizeX = rectX1 - rectX0; // number of blocks in X
+                    float sizeY = boxHeight;       // number of blocks in Y
+                    float sizeZ = rectZ1 - rectZ0; // number of blocks in Z
+
+                    // half extents (each block is 1 unit)
+                    float hx = sizeX * 0.5f;
+                    float hy = sizeY * 0.5f;
+                    float hz = sizeZ * 0.5f;
+
+                    // in world coordinates
+                    float cx = baseX + rectX0 + hx;
+                    float cy = minY + yi + hy;
+                    float cz = baseZ + rectZ0 + hz;
+
+                    BoxCollisionShape box = new BoxCollisionShape(new Vector3f(hx, hy, hz));
+                    this.addChildShape(box, new Vector3f(cx, cy, cz));
+                    boxesAdded++;
                 }
             }
         }
-
-        return buildIndexedMesh(verts, indices);
-    }
-
-    private static void addQuad(List<Float> verts, List<Integer> indices, float[] pos, float[] du, float[] dv, boolean backFace) {
-        int offset = verts.size() / 3;
-
-        // 4 Vertices
-        float[][] v = {
-                {pos[0], pos[1], pos[2]},
-                {pos[0] + du[0], pos[1] + du[1], pos[2] + du[2]},
-                {pos[0] + du[0] + dv[0], pos[1] + du[1] + dv[1], pos[2] + du[2] + dv[2]},
-                {pos[0] + dv[0], pos[1] + dv[1], pos[2] + dv[2]}
-        };
-
-        for (float[] vertex : v) {
-            verts.add(vertex[0]); verts.add(vertex[1]); verts.add(vertex[2]);
-        }
-
-        if (backFace) {
-            indices.add(offset); indices.add(offset + 2); indices.add(offset + 1);
-            indices.add(offset); indices.add(offset + 3); indices.add(offset + 2);
-        } else {
-            indices.add(offset); indices.add(offset + 1); indices.add(offset + 2);
-            indices.add(offset); indices.add(offset + 2); indices.add(offset + 3);
-        }
-    }
-
-    private static IndexedMesh buildIndexedMesh(List<Float> verts, List<Integer> indices) {
-        float[] vArray = new float[verts.size()];
-        for (int i = 0; i < verts.size(); i++) vArray[i] = verts.get(i);
-
-        int[] iArray = new int[indices.size()];
-        for (int i = 0; i < indices.size(); i++) iArray[i] = indices.get(i);
-
-        return new IndexedMesh(BufferUtils.createFloatBuffer(vArray), BufferUtils.createIntBuffer(iArray));
+        Dynamo.LOGGER.info("Boxes added for section {}: {}", pos, boxesAdded);
     }
 }
+

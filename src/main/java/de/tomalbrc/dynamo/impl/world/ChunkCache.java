@@ -5,9 +5,8 @@ import com.jme3.bullet.collision.shapes.CollisionShape;
 import com.jme3.bullet.collision.shapes.EmptyShape;
 import com.jme3.bullet.objects.PhysicsBody;
 import com.jme3.bullet.objects.PhysicsRigidBody;
-import com.jme3.math.Vector3f;
-import de.tomalbrc.dynamo.Dynamo;
 import de.tomalbrc.dynamo.DynamicElement;
+import de.tomalbrc.dynamo.Dynamo;
 import de.tomalbrc.dynamo.impl.geo.ChunkSectionCollisionShape;
 import it.unimi.dsi.fastutil.objects.ObjectArraySet;
 import net.minecraft.core.BlockPos;
@@ -38,13 +37,16 @@ public class ChunkCache {
             return null;
 
         CompletableFuture<PhysicsBody> future = CompletableFuture.supplyAsync(() -> {
-            CollisionShape shape = ChunkSectionCollisionShape.shape(chunk, pos);
-            if (shape == null)
-                shape = new EmptyShape(true);
+            CollisionShape shapeF;
+            ChunkSectionCollisionShape shape = new ChunkSectionCollisionShape(chunk, pos);
+            if (shape.countChildren() == 0)
+                shapeF = new EmptyShape(true);
+            else shapeF = shape;
 
             Dynamo.LOGGER.info("Adding chunk section, tri-count: {} {}", shape, pos.toShortString());
 
             var body = new PhysicsRigidBody(shape, 0);
+            body.setKinematic(true);
             body.setFriction(1.f);
             body.setRestitution(0f);
 
@@ -103,7 +105,7 @@ public class ChunkCache {
                 if (oldFuture != null)
                     oldFuture.cancel(true);
 
-                future.thenAcceptAsync((newBody) -> {
+                if (future != null) future.thenAcceptAsync((newBody) -> {
                     if (oldPhysicsBody != null)
                         this.physicsSpace.remove(oldPhysicsBody);
                     if (didRemove) {
