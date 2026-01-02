@@ -3,6 +3,7 @@ package de.tomalbrc.dynamo.impl.world;
 import com.jme3.bullet.PhysicsSpace;
 import com.jme3.bullet.RayTestFlag;
 import de.tomalbrc.dynamo.DynamicElement;
+import de.tomalbrc.dynamo.Dynamo;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.server.level.ServerLevel;
@@ -47,8 +48,9 @@ public class DynamicWorld {
     }
 
     public void tick(ServerLevel serverLevel) {
-
-        this.physicsSpace.update(serverLevel.tickRateManager().millisecondsPerTick()/1000f);
+        Dynamo.PHYSICS_EXECUTOR.execute(() -> {
+            this.physicsSpace.update(serverLevel.tickRateManager().millisecondsPerTick()/1000f, 3);
+        });
 
         boolean skip = serverLevel.getGameTime() % 2 != 0;
         if (!skip) {

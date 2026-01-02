@@ -50,12 +50,12 @@ public class ChunkCache {
             body.setFriction(1.f);
             body.setRestitution(0f);
 
-            Dynamo.SERVER.execute(() -> {
+            Dynamo.PHYSICS_EXECUTOR.execute(() -> {
                 this.physicsSpace.addCollisionObject(body);
             });
 
             return body;
-        }, Dynamo.EXECUTOR);
+        }, Dynamo.COLLISION_GENERATOR_EXECUTOR);
 
         this.bodyMap.put(pos, future);
 
@@ -85,8 +85,11 @@ public class ChunkCache {
                 x.getValue().cancel(true);
             else if (remove) {
                 var physicsBody = x.getValue().getNow(null);
-                if (physicsBody != null)
-                    this.physicsSpace.removeCollisionObject(physicsBody);
+                if (physicsBody != null) {
+                    Dynamo.PHYSICS_EXECUTOR.execute(() -> {
+                        this.physicsSpace.removeCollisionObject(physicsBody);
+                    });
+                }
             }
 
             return remove;
@@ -131,7 +134,7 @@ public class ChunkCache {
                 var removed = fut.getNow(null);
                 fut.cancel(true);
 
-                if (removed != null)
+                if (removed != null) // TODO: thread!
                     this.physicsSpace.removeCollisionObject(removed);
             }
         });

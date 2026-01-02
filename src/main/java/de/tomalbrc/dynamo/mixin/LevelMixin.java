@@ -8,7 +8,7 @@ import org.spongepowered.asm.mixin.Unique;
 
 @Mixin(Level.class)
 public class LevelMixin implements DynamicWorldContainer {
-    @Unique private DynamicWorld space = new DynamicWorld();
+    @Unique private DynamicWorld space;
 
     @Unique
     @Override

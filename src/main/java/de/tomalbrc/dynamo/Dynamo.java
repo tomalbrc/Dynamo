@@ -10,6 +10,7 @@ import de.tomalbrc.dynamo.api.event.ServerEvents;
 import de.tomalbrc.dynamo.impl.NativeLoader;
 import de.tomalbrc.dynamo.impl.WorldAttachment;
 import de.tomalbrc.dynamo.impl.command.ModCommands;
+import de.tomalbrc.dynamo.impl.world.DynamicWorld;
 import de.tomalbrc.dynamo.impl.world.DynamicWorldContainer;
 import eu.pb4.polymer.virtualentity.api.ElementHolder;
 import eu.pb4.polymer.virtualentity.api.elements.ItemDisplayElement;
@@ -17,6 +18,7 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Items;
@@ -29,11 +31,11 @@ import java.util.concurrent.Executors;
 
 public class Dynamo implements ModInitializer {
     public static final Logger LOGGER = LogUtils.getLogger();
-    public static final ExecutorService EXECUTOR = Executors.newWorkStealingPool();
+    public static final ExecutorService COLLISION_GENERATOR_EXECUTOR = Executors.newWorkStealingPool();
+    public static final ExecutorService PHYSICS_EXECUTOR = Executors.newSingleThreadExecutor();
     public static final String MODID = "dynamo";
 
     public static MinecraftServer SERVER;
-
 
     @Override
     public void onInitialize() {
@@ -42,8 +44,17 @@ public class Dynamo implements ModInitializer {
         ModCommands.register();
         WorldAttachment.registerEventHandler();
 
+        ServerWorldEvents.LOAD.register((minecraftServer, serverLevel) -> {
+            PHYSICS_EXECUTOR.execute(() -> {
+                ((DynamicWorldContainer)serverLevel).setDynamicWorld(new DynamicWorld());
+            });
+        });
+
         ServerLifecycleEvents.SERVER_STARTING.register(minecraftServer -> SERVER = minecraftServer);
-        ServerLifecycleEvents.SERVER_STOPPING.register(minecraftServer -> EXECUTOR.shutdownNow());
+        ServerLifecycleEvents.SERVER_STOPPING.register(minecraftServer -> {
+            COLLISION_GENERATOR_EXECUTOR.shutdownNow();
+            PHYSICS_EXECUTOR.shutdownNow();
+        });
 
         ServerTickEvents.START_WORLD_TICK.register(level -> {
             var world = ((DynamicWorldContainer) level).getDynamicWorld();
@@ -75,13 +86,15 @@ public class Dynamo implements ModInitializer {
         var bodyPos = player.position().offsetRandom(player.getRandom(), 1.5f).toVector3f();
         body.setPhysicsTransform(new Transform(new Vector3f(bodyPos.x, bodyPos.y, bodyPos.z), Quaternion.IDENTITY));
 
-        ((DynamicWorldContainer) level).getDynamicWorld().getPhysicsSpace().addCollisionObject(body);
+        Dynamo.PHYSICS_EXECUTOR.execute(() -> {
+            world.getPhysicsSpace().addCollisionObject(body);
+        });
 
         var holder = new ElementHolder();
 
         ItemDisplayElement displayElement = new ItemDisplayElement(Items.DIRT.getDefaultInstance());
-        displayElement.setTeleportDuration(2);
-        displayElement.setInterpolationDuration(2);
+        displayElement.setTeleportDuration(3);
+        displayElement.setInterpolationDuration(3);
         world.addElement(new DynamicElement(body, e -> {
             var pos = e.physicsBody().getTransform(null).getTranslation();
             displayElement.setOverridePos(new Vec3(pos.x, pos.y, pos.z));
