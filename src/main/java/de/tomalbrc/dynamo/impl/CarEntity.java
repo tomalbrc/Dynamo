@@ -1,6 +1,8 @@
 package de.tomalbrc.dynamo.impl;
 
-import com.jme3.bullet.collision.shapes.*;
+import com.jme3.bullet.collision.shapes.BoxCollisionShape;
+import com.jme3.bullet.collision.shapes.CollisionShape;
+import com.jme3.bullet.collision.shapes.CompoundCollisionShape;
 import com.jme3.bullet.objects.PhysicsVehicle;
 import com.jme3.math.Quaternion;
 import de.tomalbrc.dynamo.impl.physics.DynamicElement;
@@ -8,10 +10,13 @@ import de.tomalbrc.dynamo.impl.world.DynamicWorld;
 import eu.pb4.polymer.core.api.entity.PolymerEntity;
 import eu.pb4.polymer.virtualentity.api.ElementHolder;
 import eu.pb4.polymer.virtualentity.api.attachment.EntityAttachment;
+import eu.pb4.polymer.virtualentity.api.elements.GenericEntityElement;
 import eu.pb4.polymer.virtualentity.api.elements.ItemDisplayElement;
+import eu.pb4.polymer.virtualentity.api.elements.VirtualElement;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.network.protocol.game.ClientboundEntityPositionSyncPacket;
+import net.minecraft.network.protocol.game.ClientboundUpdateAttributesPacket;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -22,6 +27,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.PositionMoveRotation;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
@@ -37,9 +43,9 @@ import java.util.List;
 public class CarEntity extends LivingEntity implements PolymerEntity {
     public static Identifier ID = Util.id("car");
 
-    float halfWidth = 1.8f;
-    float halfHeight = 0.2f;
-    float halfLength = 2.25f;
+    float halfWidth = 0.7f;
+    float halfHeight = 0.1f;
+    float halfLength = 1.f;
 
     ElementHolder holder;
     ItemDisplayElement chassis;
@@ -76,33 +82,34 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
         this.world = world;
         if (this.vehicle == null) {
             CollisionShape boxShape = new BoxCollisionShape(new com.jme3.math.Vector3f(halfWidth, halfHeight, halfLength));
-            float centerOfMass = 1.f;
+            float centerOfMass = 0.7f;
 
             CompoundCollisionShape chassisShape = new CompoundCollisionShape();
             com.jme3.math.Vector3f boxLocalPos = new com.jme3.math.Vector3f(0, centerOfMass, 0);
             chassisShape.addChildShape(boxShape, boxLocalPos);
 
-            float mass = 1000f;
+            float mass = 100f;
             PhysicsVehicle vehicle = new PhysicsVehicle(chassisShape, mass);
-            vehicle.setSuspensionStiffness(70.0f);
-            vehicle.setSuspensionCompression(30.0f);
-            vehicle.setSuspensionDamping(10.0f);
-            vehicle.setFrictionSlip(20.0f);
+            vehicle.setSuspensionStiffness(20f);
+            vehicle.setSuspensionCompression(10.0f);
+            vehicle.setSuspensionDamping(0.2f);
+            vehicle.setFrictionSlip(10.0f);
+            vehicle.setRestitution(0.f);
             vehicle.setRollingFriction(1f);
             vehicle.setFriction(1f);
 
-            vehicle.setAngularDamping(0.1f);
+            vehicle.setAngularDamping(0.6f);
             vehicle.setAngularFactor(1f);
 
-            float yWheelPos = centerOfMass;
+            float yWheelPos = centerOfMass / 2.f;
 
             boolean front = true;
             boolean rear = false;
             float xOffset = halfWidth * 1.0f;
-            float frontAxleZ = halfLength * 1.1f;
-            float rearAxleZ = -halfLength * 1.2f;
-            float radius = 1.1f;
-            float restLength = 1.4f;
+            float frontAxleZ = halfLength * 1.2f;
+            float rearAxleZ = -halfLength * 1.0f;
+            float radius = .5f;
+            float restLength = 0.3f;
 
             com.jme3.math.Vector3f axleDirection = new com.jme3.math.Vector3f(-1, 0, 0);
             com.jme3.math.Vector3f suspensionDirection = new com.jme3.math.Vector3f(0, -1, 0);
@@ -136,6 +143,13 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
     }
 
     @Override
+    public void modifyRawEntityAttributeData(List<ClientboundUpdateAttributesPacket.AttributeSnapshot> data, ServerPlayer player, boolean initial) {
+        data.add(new ClientboundUpdateAttributesPacket.AttributeSnapshot(Attributes.SCALE, 0.2f, List.of()));
+
+        PolymerEntity.super.modifyRawEntityAttributeData(data, player, initial);
+    }
+
+    @Override
     public InteractionResult interactAt(Player player, Vec3 vec3, InteractionHand interactionHand) {
         player.startRiding(this);
         return super.interact(player, interactionHand);
@@ -156,9 +170,10 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
 
             if (this.isVehicle() && this.getFirstPassenger() instanceof ServerPlayer player) {
                 var input = getInput(player);
-                if (vehicle.getAngularVelocity(null).length() < 2) this.vehicle.accelerate((float) input.z * 1200f);
+                if (vehicle.getLinearVelocity(null).length() < 10) this.vehicle.accelerate((float) input.z * 80f);
+                else this.vehicle.accelerate(0f);
 
-                this.steering = Mth.clamp(Mth.lerp(0.4f, steering, (float) input.x * 40f), -90, 90);
+                this.steering = Mth.clamp(Mth.lerp(0.2f, steering, (float) input.x * 30f), -45, 45);
                 this.vehicle.steer(steering * Mth.DEG_TO_RAD);
 
                 if (player.getLastClientInput().jump()) {
@@ -169,7 +184,7 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
 
                         var state = level().getBlockState(BlockPos.containing(axle.x, axle.y - 0.1, axle.z));
                         if (state.isSolid()) {
-                            ((ServerLevel) level()).sendParticles(new DustParticleOptions(0, 1), axle.x, axle.y, axle.z, 10, 0.1f, 0.1f, 0.1f, 0.11);
+                            ((ServerLevel) level()).sendParticles(new DustParticleOptions(0xFFFFFFFF, 1), axle.x, axle.y, axle.z, 10, 0.1f, 0.1f, 0.1f, 0.11);
                         }
                     }
                 }
@@ -194,7 +209,13 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
 
             var pos = this.vehicle.getPhysicsLocation(null);
             this.setPos(pos.x, pos.y, pos.z);
-            this.holder.sendPacket(new ClientboundEntityPositionSyncPacket(this.getId(), new PositionMoveRotation(position(), getDeltaMovement(), 0f, 0f), false));
+            this.holder.sendPacket(new ClientboundEntityPositionSyncPacket(this.getId(), new PositionMoveRotation(position(), position(), 0f, 0f), false));
+            for (VirtualElement element : this.holder.getElements()) {
+                if (element instanceof GenericEntityElement entityElement) {
+                    var id = entityElement.getEntityId();
+                    this.holder.sendPacket(new ClientboundEntityPositionSyncPacket(id, new PositionMoveRotation(element.getCurrentPos(), element.getCurrentPos(), 0f, 0f), false));
+                }
+            }
         }
     }
 

@@ -10,15 +10,12 @@ public class ChunkMeshGenerator {
         public final List<Float> normals = new ArrayList<>();
     }
 
-    // Simple cubic mesh generator (like Minecraft)
     public static MeshData generateMesh(boolean[][][] blocks) {
         MeshData data = new MeshData();
-
-        // Iterate through all blocks in the 16x16x16 area
-        for (int x = 1; x <= 16; x++) {
-            for (int y = 1; y <= 16; y++) {
-                for (int z = 1; z <= 16; z++) {
-                    // Only generate mesh for solid blocks
+        var len = blocks.length;
+        for (int x = 1; x <= len; x++) {
+            for (int y = 1; y <= len; y++) {
+                for (int z = 1; z <= len; z++) {
                     if (blocks[x][y][z]) {
                         generateBlockFaces(blocks, x, y, z, data);
                     }
@@ -104,7 +101,6 @@ public class ChunkMeshGenerator {
     public static MeshData generateSmoothedMesh(boolean[][][] blocks) {
         MeshData data = new MeshData();
 
-        // Convert boolean array to density values
         float[][][] density = new float[18][18][18];
         for (int x = 0; x < 18; x++) {
             for (int y = 0; y < 18; y++) {
@@ -114,13 +110,10 @@ public class ChunkMeshGenerator {
             }
         }
 
-        // Apply smoothing to the density field
         smoothDensityField(density);
 
-        // Marching cubes threshold
-        float threshold = 0.5f;
+        float threshold = 0.2f;
 
-        // Process each cell in the 16x16x16 grid
         for (int x = 1; x <= 16; x++) {
             for (int y = 1; y <= 16; y++) {
                 for (int z = 1; z <= 16; z++) {
@@ -134,7 +127,6 @@ public class ChunkMeshGenerator {
 
     private static void processMarchingCubeWithEdgeTable(int x, int y, int z, float[][][] density,
                                                          float threshold, MeshData data) {
-        // Get density values at the 8 corners of the cube
         float[] cubeDensity = new float[8];
         cubeDensity[0] = density[x][y][z];
         cubeDensity[1] = density[x+1][y][z];
@@ -156,18 +148,14 @@ public class ChunkMeshGenerator {
         if (cubeDensity[6] < threshold) cubeIndex |= 64;
         if (cubeDensity[7] < threshold) cubeIndex |= 128;
 
-        // Get edge mask from EDGE_TABLE
         int edgeMask = EDGE_TABLE[cubeIndex];
 
-        // If no edges are intersected, skip this cube
         if (edgeMask == 0) {
             return;
         }
 
-        // Store interpolated vertices for each of the 12 possible edges
         float[][] edgeVertices = new float[12][];
 
-        // Interpolate vertices only for intersected edges (using edgeMask)
         if ((edgeMask & 1) != 0) {
             edgeVertices[0] = interpolateVertex(x, y, z, x+1, y, z,
                     cubeDensity[0], cubeDensity[1], threshold);
@@ -217,18 +205,14 @@ public class ChunkMeshGenerator {
                     cubeDensity[3], cubeDensity[7], threshold);
         }
 
-        // Get triangle configuration from TRIANGLE_TABLE
         int[] triangleEdges = TRIANGLE_TABLE[cubeIndex];
 
-        // Generate triangles
         for (int i = 0; i < triangleEdges.length && triangleEdges[i] != -1; i += 3) {
             int edge1 = triangleEdges[i];
             int edge2 = triangleEdges[i+1];
             int edge3 = triangleEdges[i+2];
 
-            // Only add triangle if all three vertices are valid (non-null)
             if (edgeVertices[edge1] != null && edgeVertices[edge2] != null && edgeVertices[edge3] != null) {
-                // Store current index count before adding vertices
                 int baseIndex = data.positions.size() / 3;
 
                 // Add vertex positions
@@ -244,10 +228,8 @@ public class ChunkMeshGenerator {
                 data.positions.add(edgeVertices[edge3][1]);
                 data.positions.add(edgeVertices[edge3][2]);
 
-                // Calculate and add normals for this triangle
                 calculateAndAddNormal(data, baseIndex);
 
-                // Add indices
                 data.indices.add(baseIndex);
                 data.indices.add(baseIndex + 1);
                 data.indices.add(baseIndex + 2);
@@ -257,9 +239,7 @@ public class ChunkMeshGenerator {
 
     private static float[] interpolateVertex(int x1, int y1, int z1, int x2, int y2, int z2,
                                              float d1, float d2, float threshold) {
-        // Handle edge cases to prevent division by zero or NaN
         if (Math.abs(d1 - d2) < 0.00001f) {
-            // Values are essentially equal, return midpoint
             return new float[]{(x1 + x2) / 2.0f, (y1 + y2) / 2.0f, (z1 + z2) / 2.0f};
         }
 
@@ -271,10 +251,7 @@ public class ChunkMeshGenerator {
             return new float[]{x2, y2, z2};
         }
 
-        // Linear interpolation
         float t = (threshold - d1) / (d2 - d1);
-
-        // Clamp t to [0,1] to avoid floating point errors
         t = Math.max(0.0f, Math.min(1.0f, t));
 
         return new float[]{
@@ -285,15 +262,12 @@ public class ChunkMeshGenerator {
     }
 
     private static void calculateAndAddNormal(MeshData data, int baseIndex) {
-        // Get the last 3 vertices (the triangle we just added)
         int idx = baseIndex * 3;
-
         float[] v0 = {
                 data.positions.get(idx),
                 data.positions.get(idx + 1),
                 data.positions.get(idx + 2)
         };
-
         float[] v1 = {
                 data.positions.get(idx + 3),
                 data.positions.get(idx + 4),
@@ -305,7 +279,6 @@ public class ChunkMeshGenerator {
                 data.positions.get(idx + 7),
                 data.positions.get(idx + 8)
         };
-
         // Calculate edges
         float[] edge1 = {
                 v1[0] - v0[0],
@@ -319,14 +292,12 @@ public class ChunkMeshGenerator {
                 v2[2] - v0[2]
         };
 
-        // Calculate normal using cross product
         float[] normal = {
                 edge1[1] * edge2[2] - edge1[2] * edge2[1],
                 edge1[2] * edge2[0] - edge1[0] * edge2[2],
                 edge1[0] * edge2[1] - edge1[1] * edge2[0]
         };
 
-        // Normalize
         float length = (float)Math.sqrt(
                 normal[0] * normal[0] +
                         normal[1] * normal[1] +
@@ -339,7 +310,6 @@ public class ChunkMeshGenerator {
             normal[2] /= length;
         }
 
-        // Add normal for each vertex of the triangle
         for (int i = 0; i < 3; i++) {
             data.normals.add(normal[0]);
             data.normals.add(normal[1]);
@@ -374,9 +344,7 @@ public class ChunkMeshGenerator {
         // Copy back smoothed values
         for (int x = 1; x < 17; x++) {
             for (int y = 1; y < 17; y++) {
-                for (int z = 1; z < 17; z++) {
-                    density[x][y][z] = temp[x][y][z];
-                }
+                System.arraycopy(temp[x][y], 1, density[x][y], 1, 16);
             }
         }
     }

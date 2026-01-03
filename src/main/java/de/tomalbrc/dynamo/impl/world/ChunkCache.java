@@ -4,26 +4,24 @@ import com.jme3.bullet.collision.shapes.CollisionShape;
 import com.jme3.bullet.collision.shapes.EmptyShape;
 import com.jme3.bullet.objects.PhysicsBody;
 import com.jme3.bullet.objects.PhysicsRigidBody;
-import de.tomalbrc.dynamo.impl.physics.DynamicElement;
 import de.tomalbrc.dynamo.Dynamo;
-import de.tomalbrc.dynamo.impl.physics.PhysicsThread;
 import de.tomalbrc.dynamo.impl.physics.ChunkSectionCollisionShape;
+import de.tomalbrc.dynamo.impl.physics.DynamicElement;
+import de.tomalbrc.dynamo.impl.physics.PhysicsThread;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
-import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.objects.ObjectArraySet;
 import it.unimi.dsi.fastutil.objects.Reference2ReferenceOpenHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.SectionPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class ChunkCache {
     private final PhysicsThread physicsThread;
@@ -44,13 +42,13 @@ public class ChunkCache {
         return terrainObjects.get(pos);
     }
 
-    public void addSectionPhysics(LevelChunk chunk, SectionPos pos) {
+    public void addSectionPhysics(Level level, LevelChunk chunk, SectionPos pos) {
         if (!chunk.isInsideBuildHeight(pos.maxBlockY()) || !chunk.isInsideBuildHeight(pos.minBlockY()))
             return;
 
         this.physicsThread.enqueue(space -> {
             CollisionShape shapeF;
-            ChunkSectionCollisionShape shape = new ChunkSectionCollisionShape(chunk, pos);
+            ChunkSectionCollisionShape shape = new ChunkSectionCollisionShape(level, pos);
             if (shape.countChildren() == 0)
                 shapeF = new EmptyShape(true);
             else shapeF = shape;
@@ -111,7 +109,7 @@ public class ChunkCache {
                 var oldPhysicsBody = this.terrainObjects.get(SectionPos.of(blockPos).asLong());
 
                 this.terrainObjectsProcessing.add(sectionPos.asLong());
-                this.addSectionPhysics(level.getChunkAt(blockPos), sectionPos);
+                this.addSectionPhysics(level, level.getChunkAt(blockPos), sectionPos);
                 boolean didRemove = this.dirty.remove(sectionPos);
 
                 if (oldPhysicsBody != null)
