@@ -29,13 +29,11 @@ public class ChunkMeshGenerator {
     private static void generateBlockFaces(boolean[][][] blocks, int x, int y, int z, MeshData data) {
         int baseIndex = data.positions.size() / 3;
 
-        // Define the 8 vertices of a cube
         float[][] cubeVertices = {
                 {x, y, z}, {x+1, y, z}, {x+1, y, z+1}, {x, y, z+1},  // Bottom face
                 {x, y+1, z}, {x+1, y+1, z}, {x+1, y+1, z+1}, {x, y+1, z+1}  // Top face
         };
 
-        // Define the 6 faces (each face has 4 vertices)
         int[][] faceIndices = {
                 {0, 1, 2, 3},  // Bottom
                 {4, 5, 6, 7},  // Top
@@ -45,7 +43,6 @@ public class ChunkMeshGenerator {
                 {0, 3, 7, 4}   // Left
         };
 
-        // Normal vectors for each face
         float[][] faceNormals = {
                 {0, -1, 0},  // Bottom
                 {0, 1, 0},   // Top
@@ -55,7 +52,6 @@ public class ChunkMeshGenerator {
                 {-1, 0, 0}   // Left
         };
 
-        // Neighbor offsets for each face
         int[][] neighborOffsets = {
                 {0, -1, 0},  // Bottom
                 {0, 1, 0},   // Top
@@ -65,27 +61,23 @@ public class ChunkMeshGenerator {
                 {-1, 0, 0}   // Left
         };
 
-        // Generate faces only if neighbor is not solid
         for (int face = 0; face < 6; face++) {
             int nx = x + neighborOffsets[face][0];
             int ny = y + neighborOffsets[face][1];
             int nz = z + neighborOffsets[face][2];
 
-            // Check neighbor (using the 18x18x18 array for border checks)
             if (!blocks[nx][ny][nz]) {
-                // Add vertices for this face
                 for (int i = 0; i < 4; i++) {
                     int vertexIdx = faceIndices[face][i];
                     data.positions.add(cubeVertices[vertexIdx][0]);
                     data.positions.add(cubeVertices[vertexIdx][1]);
                     data.positions.add(cubeVertices[vertexIdx][2]);
-                    // Add normal
+
                     data.normals.add(faceNormals[face][0]);
                     data.normals.add(faceNormals[face][1]);
                     data.normals.add(faceNormals[face][2]);
                 }
 
-                // Add indices for two triangles (quad)
                 data.indices.add(baseIndex);
                 data.indices.add(baseIndex + 1);
                 data.indices.add(baseIndex + 2);
@@ -117,6 +109,7 @@ public class ChunkMeshGenerator {
         for (int x = 1; x <= 16; x++) {
             for (int y = 1; y <= 16; y++) {
                 for (int z = 1; z <= 16; z++) {
+                    processMarchingCubeWithEdgeTable(x, y, z, density, threshold, data);
                     processMarchingCubeWithEdgeTable(x, y, z, density, threshold, data);
                 }
             }
@@ -215,7 +208,6 @@ public class ChunkMeshGenerator {
             if (edgeVertices[edge1] != null && edgeVertices[edge2] != null && edgeVertices[edge3] != null) {
                 int baseIndex = data.positions.size() / 3;
 
-                // Add vertex positions
                 data.positions.add(edgeVertices[edge1][0]);
                 data.positions.add(edgeVertices[edge1][1]);
                 data.positions.add(edgeVertices[edge1][2]);
@@ -279,7 +271,7 @@ public class ChunkMeshGenerator {
                 data.positions.get(idx + 7),
                 data.positions.get(idx + 8)
         };
-        // Calculate edges
+
         float[] edge1 = {
                 v1[0] - v0[0],
                 v1[1] - v0[1],
@@ -320,31 +312,48 @@ public class ChunkMeshGenerator {
     private static void smoothDensityField(float[][][] density) {
         float[][][] temp = new float[18][18][18];
 
-        // Simple 3x3x3 Gaussian-like smoothing
-        for (int x = 1; x < 17; x++) {
-            for (int y = 1; y < 17; y++) {
-                for (int z = 1; z < 17; z++) {
-                    float sum = 0;
-                    int count = 0;
-
-                    for (int dx = -1; dx <= 1; dx++) {
-                        for (int dy = -1; dy <= 1; dy++) {
-                            for (int dz = -1; dz <= 1; dz++) {
-                                sum += density[x + dx][y + dy][z + dz];
-                                count++;
-                            }
-                        }
-                    }
-
-                    temp[x][y][z] = sum / count;
+        for (int x = 0; x < 18; x++) {
+            for (int y = 0; y < 18; y++) {
+                for (int z = 0; z < 18; z++) {
+                    temp[x][y][z] = density[x][y][z];
                 }
             }
         }
 
-        // Copy back smoothed values
-        for (int x = 1; x < 17; x++) {
-            for (int y = 1; y < 17; y++) {
-                System.arraycopy(temp[x][y], 1, density[x][y], 1, 16);
+        for (int x = 0; x < 18; x++) {
+            for (int y = 0; y < 18; y++) {
+                for (int z = 0; z < 18; z++) {
+                    float sum = 0;
+                    int count = 0;
+
+                    // Use 3x3x3 kernel with bounds checking
+                    for (int dx = -1; dx <= 1; dx++) {
+                        for (int dy = -1; dy <= 1; dy++) {
+                            for (int dz = -1; dz <= 1; dz++) {
+                                int nx = x + dx;
+                                int ny = y + dy;
+                                int nz = z + dz;
+
+                                if (nx >= 0 && nx < 18 && ny >= 0 && ny < 18 && nz >= 0 && nz < 18) {
+                                    sum += density[nx][ny][nz];
+                                    count++;
+                                }
+                            }
+                        }
+                    }
+
+                    if (count > 0) {
+                        temp[x][y][z] = sum / count;
+                    }
+                }
+            }
+        }
+
+        for (int x = 0; x < 18; x++) {
+            for (int y = 0; y < 18; y++) {
+                for (int z = 0; z < 18; z++) {
+                    density[x][y][z] = temp[x][y][z];
+                }
             }
         }
     }

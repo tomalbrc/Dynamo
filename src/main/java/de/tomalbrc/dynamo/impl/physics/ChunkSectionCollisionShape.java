@@ -21,10 +21,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
-/**
- * ChunkSectionCollisionShape with merge-aware removal of fully-occluded voxels:
- * only keeps a removal if it does not increase (and preferably reduces) the box count.
- */
 public class ChunkSectionCollisionShape extends CompoundCollisionShape {
     private final SectionPos pos;
 
@@ -45,6 +41,10 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
             floatBuffer.put(mesh.positions.get(i) + pos.x() * 16);
             floatBuffer.put(mesh.positions.get(i + 1) + pos.y() * 16);
             floatBuffer.put(mesh.positions.get(i + 2) + pos.z() * 16);
+
+            mesh.positions.set(i, floatBuffer.get(i));
+            mesh.positions.set(i + 1, floatBuffer.get(i+1));
+            mesh.positions.set(i + 2, floatBuffer.get(i+2));
         }
         IntBuffer intBuffer = BufferUtils.createIntBuffer(mesh.indices.stream().mapToInt(Integer::intValue).toArray());
 
