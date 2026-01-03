@@ -37,30 +37,30 @@ public class ChunkMeshGenerator {
         };
 
         int[][] faceIndices = {
-                {0, 1, 2, 3},  // Bottom
-                {4, 5, 6, 7},  // Top
-                {0, 1, 5, 4},  // Front
-                {2, 3, 7, 6},  // Back
-                {1, 2, 6, 5},  // Right
-                {0, 3, 7, 4}   // Left
+                {0, 1, 2, 3},  // bottom
+                {4, 5, 6, 7},  // top
+                {0, 1, 5, 4},  // front
+                {2, 3, 7, 6},  // back
+                {1, 2, 6, 5},  // right
+                {0, 3, 7, 4}   // left
         };
 
         float[][] faceNormals = {
-                {0, -1, 0},  // Bottom
-                {0, 1, 0},   // Top
-                {0, 0, -1},  // Front
-                {0, 0, 1},   // Back
-                {1, 0, 0},   // Right
-                {-1, 0, 0}   // Left
+                {0, -1, 0},  // bottom
+                {0, 1, 0},   // top
+                {0, 0, -1},  // front
+                {0, 0, 1},   // back
+                {1, 0, 0},   // right
+                {-1, 0, 0}   // left
         };
 
         int[][] neighborOffsets = {
-                {0, -1, 0},  // Bottom
-                {0, 1, 0},   // Top
-                {0, 0, -1},  // Front
-                {0, 0, 1},   // Back
-                {1, 0, 0},   // Right
-                {-1, 0, 0}   // Left
+                {0, -1, 0},  // bottom
+                {0, 1, 0},   // top
+                {0, 0, -1},  // front
+                {0, 0, 1},   // back
+                {1, 0, 0},   // right
+                {-1, 0, 0}   // left
         };
 
         for (int face = 0; face < 6; face++) {
@@ -131,7 +131,6 @@ public class ChunkMeshGenerator {
         cubeDensity[6] = density[x+1][y+1][z+1];
         cubeDensity[7] = density[x][y+1][z+1];
 
-        // Calculate cube index using bitmask
         int cubeIndex = 0;
         if (cubeDensity[0] < threshold) cubeIndex |= 1;
         if (cubeDensity[1] < threshold) cubeIndex |= 2;
@@ -336,7 +335,6 @@ public class ChunkMeshGenerator {
             }
         }
 
-        // Apply smoothed values back
         for (int x = 1; x < 19; x++) {
             for (int y = 1; y < 19; y++) {
                 for (int z = 1; z < 19; z++) {

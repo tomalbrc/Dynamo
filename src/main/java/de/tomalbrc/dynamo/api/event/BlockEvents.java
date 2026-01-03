@@ -7,7 +7,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.NotNull;
 
-public class ServerEvents {
+public class BlockEvents {
     public static class Block {
         public static final Event<@NotNull BlockUpdate> BLOCK_UPDATE = EventFactory.createArrayBacked(BlockUpdate.class, (events) -> (level, pos, neighbourBlockState, neighbourPos) -> {
             for (var e : events) {

@@ -8,11 +8,13 @@ import com.jme3.math.Vector3f;
 import com.jme3.util.BufferUtils;
 import de.tomalbrc.dynamo.Dynamo;
 import de.tomalbrc.dynamo.StlExporter;
+import de.tomalbrc.dynamo.impl.config.ModConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.IntBuffer;
@@ -20,21 +22,50 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CompletableFuture;
 
 public class ChunkSectionCollisionShape extends CompoundCollisionShape {
     private final SectionPos pos;
 
     static final int CHUNK_SIZE = 16;
 
-    public ChunkSectionCollisionShape(Level level, SectionPos sectionPos) {
+    CompletableFuture<MeshCollisionShape> smoothFuture;
+    public MeshCollisionShape simpleShape;
+    public boolean[][][] solid;
+
+    public ChunkSectionCollisionShape(Level level, SectionPos sectionPos, boolean smooth) {
         this.pos = sectionPos;
-        buildChunkCollisionShape(level);
+        buildChunkCollisionShape(level, smooth);
+    }
+
+    public CompletableFuture<MeshCollisionShape> smoothFuture() {
+        this.smoothFuture = CompletableFuture.supplyAsync(() -> {
+            var m = ChunkMeshGenerator.generateSmoothedMesh(solid);
+            return getMeshCollisionShape(m);
+        }, Dynamo.COLLISION_GENERATOR_EXECUTOR);
+
+        return this.smoothFuture;
     }
 
     protected void buildMesh(boolean[][][] solid) {
-        var mesh = ChunkMeshGenerator.generateSmoothedMesh(solid);
+        var mesh = ChunkMeshGenerator.generateMesh(solid);
+        final var shape = getMeshCollisionShape(mesh);
+        if (shape == null) return;
+        this.simpleShape = shape;
+        this.addChildShape(shape);
+
+        if (ModConfig.getInstance().exportMesh) {
+            try {
+                StlExporter.writeAsciiStl(String.format(Locale.US, "/tmp/section-%d-%d-%d.stl", pos.x(), pos.y(), pos.z()), "section", mesh.positions, mesh.indices);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    private @Nullable MeshCollisionShape getMeshCollisionShape(ChunkMeshGenerator.MeshData mesh) {
         if (mesh.positions.isEmpty())
-            return;
+            return null;
 
         var floatBuffer = BufferUtils.createFloatBuffer(mesh.positions.size());
         for (int i = 0; i < mesh.positions.size(); i += 3) {
@@ -48,16 +79,15 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
         }
         IntBuffer intBuffer = BufferUtils.createIntBuffer(mesh.indices.stream().mapToInt(Integer::intValue).toArray());
 
-        this.addChildShape(new MeshCollisionShape(false, new IndexedMesh(floatBuffer, intBuffer)));
-
-//        try {
-//            StlExporter.writeAsciiStl(String.format(Locale.US, "/tmp/section-%d-%d-%d.stl", pos.x(), pos.y(), pos.z()), "section", mesh.positions, mesh.indices);
-//        } catch (IOException e) {
-//            throw new RuntimeException(e);
-//        }
+        return new MeshCollisionShape(false, new IndexedMesh(floatBuffer, intBuffer));
     }
 
-    public void buildChunkCollisionShape(Level level) {
+    protected void replaceMesh(MeshCollisionShape oldShape, MeshCollisionShape newShape) {
+        this.removeChildShape(oldShape);
+        this.addChildShape(newShape);
+    }
+
+    public void buildChunkCollisionShape(Level level, boolean smooth) {
         int baseX = pos.minBlockX();
         int baseZ = pos.minBlockZ();
         int minY = pos.minBlockY();
@@ -65,18 +95,21 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
         int height = maxY - minY;
         assert height == CHUNK_SIZE;
 
-        boolean mesh = true;
+        boolean mesh = ModConfig.getInstance().mesh;
 
         var additionalRad = mesh? 4 : 0;
         var additionalRadHalf = mesh? additionalRad/2 : 0;
-        boolean[][][] solid = new boolean[CHUNK_SIZE + additionalRad][CHUNK_SIZE + additionalRad][CHUNK_SIZE + additionalRad];
-        BlockPos.MutableBlockPos tmp = new BlockPos.MutableBlockPos();
-        for (int x = 0; x < CHUNK_SIZE + additionalRad; x++) {
-            for (int y = 0; y < CHUNK_SIZE + additionalRad; y++) {
-                for (int z = 0; z < CHUNK_SIZE + additionalRad; z++) {
-                    tmp.set(baseX + x - additionalRadHalf, minY + y - additionalRadHalf, baseZ + z - additionalRadHalf);
-                    BlockState st = level.getBlockState(tmp);
-                    solid[x][y][z] = !st.is(BlockTags.LEAVES) && !st.getCollisionShape(level, tmp).isEmpty();
+
+        if (solid == null) {
+            solid = new boolean[CHUNK_SIZE + additionalRad][CHUNK_SIZE + additionalRad][CHUNK_SIZE + additionalRad];
+            BlockPos.MutableBlockPos tmp = new BlockPos.MutableBlockPos();
+            for (int x = 0; x < CHUNK_SIZE + additionalRad; x++) {
+                for (int y = 0; y < CHUNK_SIZE + additionalRad; y++) {
+                    for (int z = 0; z < CHUNK_SIZE + additionalRad; z++) {
+                        tmp.set(baseX + x - additionalRadHalf, minY + y - additionalRadHalf, baseZ + z - additionalRadHalf);
+                        BlockState st = level.getBlockState(tmp);
+                        solid[x][y][z] = !st.is(BlockTags.LEAVES) && !st.getCollisionShape(level, tmp).isEmpty();
+                    }
                 }
             }
         }
@@ -104,7 +137,7 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
         }
 
         if (!candidates.isEmpty()) {
-            int baseline = packCount(solid, CHUNK_SIZE);
+            int baseline = packCount(solid);
 
             boolean removedAny;
             int totalRemoved = 0;
@@ -118,7 +151,7 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
 
                     solid[cx][cy][cz] = false;
 
-                    int newCount = packCount(solid, CHUNK_SIZE);
+                    int newCount = packCount(solid);
                     if (newCount <= baseline) {
                         baseline = newCount;
                         totalRemoved++;
@@ -220,12 +253,12 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
         Dynamo.LOGGER.info("Boxes added for section {}: {}", pos, boxesAdded);
     }
 
-    private int packCount(boolean[][][] solid, int height) {
-        boolean[][][] used = new boolean[CHUNK_SIZE][height][CHUNK_SIZE];
+    private int packCount(boolean[][][] solid) {
+        boolean[][][] used = new boolean[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];
         boolean[][] mask = new boolean[CHUNK_SIZE][CHUNK_SIZE];
         int boxes = 0;
 
-        for (int yi = 0; yi < height; yi++) {
+        for (int yi = 0; yi < CHUNK_SIZE; yi++) {
             for (int z = 0; z < CHUNK_SIZE; z++) {
                 for (int x = 0; x < CHUNK_SIZE; x++) {
                     mask[z][x] = solid[x][yi][z] && !used[x][yi][z];
@@ -262,7 +295,7 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
                     // greedy grow vertically
                     int boxHeight = 1;
                     vertical:
-                    while (yi + boxHeight < height) {
+                    while (yi + boxHeight < CHUNK_SIZE) {
                         for (int zz = rectZ0; zz < rectZ1; zz++) {
                             for (int xx = rectX0; xx < rectX1; xx++) {
                                 if (!solid[xx][yi + boxHeight][zz] || used[xx][yi + boxHeight][zz]) {

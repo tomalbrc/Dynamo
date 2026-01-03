@@ -48,12 +48,12 @@ public class ChunkCache {
 
         this.physicsThread.enqueue(space -> {
             CollisionShape shapeF;
-            ChunkSectionCollisionShape shape = new ChunkSectionCollisionShape(level, pos);
-            if (shape.countChildren() == 0)
+            ChunkSectionCollisionShape sectionCollisionShape = new ChunkSectionCollisionShape(level, pos, false);
+            if (sectionCollisionShape.countChildren() == 0)
                 shapeF = new EmptyShape(true);
-            else shapeF = shape;
+            else shapeF = sectionCollisionShape;
 
-            Dynamo.LOGGER.info("Adding chunk section, tri-count: {} {}", shape.countChildren(), pos.toShortString());
+            Dynamo.LOGGER.info("Adding chunk section, tri-count: {} {}", sectionCollisionShape.countChildren(), pos.toShortString());
 
             var body = new PhysicsRigidBody(shapeF, 0);
             body.setKinematic(true);
@@ -64,6 +64,15 @@ public class ChunkCache {
 
             this.terrainObjects.put(pos.asLong(), body);
             this.terrainObjectsProcessing.remove(pos.asLong());
+
+            if (sectionCollisionShape.countChildren() > 0) {
+                sectionCollisionShape.smoothFuture().thenAcceptAsync(x -> {
+                    sectionCollisionShape.removeChildShape(sectionCollisionShape.simpleShape);
+                    sectionCollisionShape.addChildShape(x);
+                    this.physicsThread.enqueue(s -> body.rebuildRigidBody());
+                });
+            }
+
         });
     }
 

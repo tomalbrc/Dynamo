@@ -1,6 +1,5 @@
 package de.tomalbrc.dynamo;
 
-import com.jme3.bullet.collision.shapes.BoxCollisionShape;
 import com.jme3.bullet.objects.PhysicsCharacter;
 import com.jme3.bullet.objects.PhysicsRigidBody;
 import com.jme3.math.Quaternion;
@@ -8,7 +7,7 @@ import com.jme3.math.Transform;
 import com.jme3.math.Vector3f;
 import com.mojang.logging.LogUtils;
 import com.simsilica.mathd.Vec3d;
-import de.tomalbrc.dynamo.api.event.ServerEvents;
+import de.tomalbrc.dynamo.api.event.BlockEvents;
 import de.tomalbrc.dynamo.impl.Entities;
 import de.tomalbrc.dynamo.impl.physics.DynamicElement;
 import de.tomalbrc.dynamo.impl.NativeLoader;
@@ -27,7 +26,6 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.Shapes;
@@ -64,6 +62,7 @@ public class Dynamo implements ModInitializer {
         });
 
         ServerLifecycleEvents.SERVER_STARTING.register(minecraftServer -> SERVER = minecraftServer);
+        ServerLifecycleEvents.SERVER_STOPPED.register(minecraftServer -> COLLISION_GENERATOR_EXECUTOR.shutdownNow());
 
         ServerTickEvents.START_WORLD_TICK.register(level -> {
             var world = ((DynamicWorldContainer) level).getDynamicWorld();
@@ -76,7 +75,7 @@ public class Dynamo implements ModInitializer {
             });
         });
 
-        ServerEvents.Block.BLOCK_UPDATE.register((level, pos, blockState, blockPos) -> {
+        BlockEvents.Block.BLOCK_UPDATE.register((level, pos, blockState, blockPos) -> {
             ((DynamicWorldContainer) level).getDynamicWorld().updateBlock(level, level.getBlockState(pos), pos);
         });
 
