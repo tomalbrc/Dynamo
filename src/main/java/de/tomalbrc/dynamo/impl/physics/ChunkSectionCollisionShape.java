@@ -14,6 +14,7 @@ import net.minecraft.world.level.chunk.LevelChunk;
 
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -53,17 +54,17 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
         }
 
         var mesh = ChunkMeshGenerator.generateMesh(solid);
-        if (mesh.vertices == null || mesh.vertices.length == 0)
+        if (mesh.positions.isEmpty())
             return;
 
-        FloatBuffer v = BufferUtils.createFloatBuffer(mesh.vertices.length);
-        for (int i = 0; i < mesh.vertices.length; i += 3) {
-            v.put(mesh.vertices[(i)] + pos.getX() * 16);
-            v.put(mesh.vertices[(i + 1)] + pos.getY() * 16);
-            v.put(mesh.vertices[(i + 2)] + pos.getZ() * 16);
+        FloatBuffer v = BufferUtils.createFloatBuffer(mesh.positions.size());
+        for (int i = 0; i < mesh.positions.size(); i += 3) {
+            v.put(mesh.positions.get(i) + pos.getX() * 16);
+            v.put(mesh.positions.get(i + 1) + pos.getY() * 16);
+            v.put(mesh.positions.get(i + 2) + pos.getZ() * 16);
         }
-
-        IndexedMesh indexedMesh = new IndexedMesh(v, BufferUtils.createIntBuffer(mesh.indices));
+        int[] arr = mesh.indices.stream().mapToInt(Integer::intValue).toArray();
+        IndexedMesh indexedMesh = new IndexedMesh(v, BufferUtils.createIntBuffer(arr));
         this.addChildShape(new MeshCollisionShape(true, indexedMesh));
 
         if (true) return;

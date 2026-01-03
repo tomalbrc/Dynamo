@@ -1,10 +1,8 @@
 package de.tomalbrc.dynamo.impl;
 
 import com.jme3.bullet.collision.shapes.*;
-import com.jme3.bullet.objects.PhysicsRigidBody;
 import com.jme3.bullet.objects.PhysicsVehicle;
 import com.jme3.math.Quaternion;
-import de.tomalbrc.dynamo.api.event.ServerEvents;
 import de.tomalbrc.dynamo.impl.physics.DynamicElement;
 import de.tomalbrc.dynamo.impl.world.DynamicWorld;
 import eu.pb4.polymer.core.api.entity.PolymerEntity;
@@ -13,11 +11,9 @@ import eu.pb4.polymer.virtualentity.api.attachment.EntityAttachment;
 import eu.pb4.polymer.virtualentity.api.elements.ItemDisplayElement;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.DustParticleOptions;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -34,14 +30,13 @@ import org.joml.Vector3f;
 import xyz.nucleoid.packettweaker.PacketContext;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 public class CarEntity extends LivingEntity implements PolymerEntity {
     public static Identifier ID = Util.id("car");
 
     ElementHolder holder;
-    ItemDisplayElement e;
+    ItemDisplayElement chassis;
     List<ItemDisplayElement> wheels = new ArrayList<>();
 
     DynamicWorld world;
@@ -54,15 +49,13 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
         this.setNoGravity(true);
         this.noPhysics = true;
 
-        e = new ItemDisplayElement(Items.DIAMOND_BLOCK);
-        e.setTeleportDuration(2);
-        e.setInterpolationDuration(2);
-        e.setScale(new Vector3f(1.25f
-        , 0.5f,
-        2.5f));
+        chassis = new ItemDisplayElement(Items.DIAMOND_BLOCK);
+        chassis.setTeleportDuration(3);
+        chassis.setInterpolationDuration(3);
+        chassis.setScale(new Vector3f(1.25f, 0.5f, 2.5f));
 
         this.holder = new ElementHolder();
-        this.holder.addElement(e);
+        this.holder.addElement(chassis);
         EntityAttachment.ofTicking(holder, this);
     }
 
@@ -82,31 +75,31 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
             float halfHeight = 0.5f;
             float halfLength = 1.0f;
             CollisionShape boxShape = new BoxCollisionShape(new com.jme3.math.Vector3f(halfWidth, halfHeight, halfLength));
-            float coMOffset = 1.1f;
+            float centerOfMass = 1.1f;
 
             CompoundCollisionShape chassisShape = new CompoundCollisionShape();
-            com.jme3.math.Vector3f boxLocalPos = new com.jme3.math.Vector3f(0, coMOffset, 0);
+            com.jme3.math.Vector3f boxLocalPos = new com.jme3.math.Vector3f(0, centerOfMass, 0);
             chassisShape.addChildShape(boxShape, boxLocalPos);
 
             float mass = 1000f;
             PhysicsVehicle vehicle = new PhysicsVehicle(chassisShape, mass);
             vehicle.setSuspensionStiffness(100.0f);
-            vehicle.setSuspensionCompression(30.0f);
-            vehicle.setSuspensionDamping(7.0f);
-            vehicle.setFrictionSlip(3.0f);
+            vehicle.setSuspensionCompression(200.0f);
+            vehicle.setSuspensionDamping(50.0f);
+            vehicle.setFrictionSlip(5.0f);
 
             vehicle.setAngularDamping(0);
             vehicle.setAngularFactor(1f);
 
-            float yWheelPos = coMOffset; // relative to com
+            float yWheelPos = centerOfMass; // relative to com
 
             boolean front = true;
             boolean rear = false;
             float xOffset = halfWidth * 1.0f;
             float frontAxleZ = halfLength * 0.8f;
             float rearAxleZ = -halfLength * 1.2f;
-            float radius = 0.4f;
-            float restLength = 1.2f;
+            float radius = 0.6f;
+            float restLength = 2.0f;
 
             com.jme3.math.Vector3f axleDirection = new com.jme3.math.Vector3f(-1, 0, 0);
             com.jme3.math.Vector3f suspensionDirection = new com.jme3.math.Vector3f(0, -1, 0);
@@ -120,7 +113,8 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
             vehicle.addWheel(new com.jme3.math.Vector3f(xOffset, yWheelPos, rearAxleZ),
                     suspensionDirection, axleDirection, restLength, radius, rear);
 
-            vehicle.setPhysicsLocation(new com.jme3.math.Vector3f((float)getX(), (float)getY(), (float)getZ()));
+            vehicle.setPhysicsLocation(new com.jme3.math.Vector3f((float) getX(), (float) getY(), (float) getZ()));
+
             world.getPhysicsThread().enqueue(space -> {
                 space.add(vehicle);
                 this.vehicle = vehicle;
@@ -128,14 +122,16 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
 
             for (int i = 0; i < vehicle.getNumWheels(); i++) {
                 var e = new ItemDisplayElement(Items.DIAMOND_BLOCK);
-                e.setTeleportDuration(2);
-                e.setInterpolationDuration(2);
-                e.setScale(new Vector3f(radius+0.2f));
+                e.setTeleportDuration(3);
+                e.setInterpolationDuration(3);
+                e.setScale(new Vector3f(radius + 0.2f));
                 this.holder.addElement(e);
                 this.wheels.add(e);
             }
 
-            this.loader = new DynamicElement(vehicle, s -> {}, s -> {});
+            this.loader = new DynamicElement(vehicle, s -> {
+            }, s -> {
+            });
             world.addElement(loader);
         }
     }
@@ -145,6 +141,11 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
         player.startRiding(this);
         return super.interact(player, interactionHand);
     }
+
+    com.jme3.math.Vector3f pos = new com.jme3.math.Vector3f();
+    Quaternion rot = new Quaternion();
+
+    float steering = 0;
 
     @Override
     public void baseTick() {
@@ -156,19 +157,20 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
 
             if (this.isVehicle() && this.getFirstPassenger() instanceof ServerPlayer player) {
                 var input = getInput(player);
-                this.vehicle.accelerate((float) input.z*1000f);
-                this.vehicle.steer((float) input.x*45f);
+                this.vehicle.accelerate((float) input.z * 1000f);
+
+                this.steering = Mth.clamp(Mth.lerp(0.4f, steering, (float) input.x*40f), -90, 90);
+                this.vehicle.steer(steering * Mth.DEG_TO_RAD);
 
                 if (player.getLastClientInput().jump()) {
                     this.vehicle.brake(0.5f);
                     for (int i = 0; i < this.vehicle.getNumWheels(); i++) {
                         var wheel = this.vehicle.getWheel(i);
-
                         var axle = wheel.getWheelWorldLocation(null);
 
                         var state = level().getBlockState(BlockPos.containing(axle.x, axle.y - 0.1, axle.z));
                         if (state.isSolid()) {
-                            ((ServerLevel)level()).sendParticles(new DustParticleOptions(0,1), axle.x, axle.y, axle.z, 10, 0.1f, 0.1f, 0.1f, 0.11);
+                            ((ServerLevel) level()).sendParticles(new DustParticleOptions(0, 1), axle.x, axle.y, axle.z, 10, 0.1f, 0.1f, 0.1f, 0.11);
                         }
                     }
                 }
@@ -185,9 +187,9 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
 
             var carPos = this.vehicle.getPhysicsLocation(null);
             var carRot = this.vehicle.getPhysicsRotation(null);
-            e.setOverridePos(new Vec3(carPos.x, carPos.y, carPos.z));
-            e.setLeftRotation(new Quaternionf(carRot.getX(), carRot.getY(), carRot.getZ(), carRot.getW()));
-            e.startInterpolationIfDirty();
+            chassis.setOverridePos(new Vec3(carPos.x, carPos.y, carPos.z));
+            chassis.setLeftRotation(new Quaternionf(carRot.getX(), carRot.getY(), carRot.getZ(), carRot.getW()));
+            chassis.startInterpolationIfDirty();
 
             var pos = this.vehicle.getPhysicsLocation(null);
             this.setPos(pos.x, pos.y, pos.z);
