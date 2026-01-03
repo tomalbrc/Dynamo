@@ -6,17 +6,18 @@ import com.jme3.bullet.collision.shapes.MeshCollisionShape;
 import com.jme3.bullet.collision.shapes.infos.IndexedMesh;
 import com.jme3.math.Vector3f;
 import com.jme3.util.BufferUtils;
+import com.llamalad7.mixinextras.sugar.Local;
 import de.tomalbrc.dynamo.Dynamo;
+import de.tomalbrc.dynamo.StlExporter;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 
+import java.io.IOException;
 import java.nio.FloatBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
+import java.nio.IntBuffer;
+import java.util.*;
 
 /**
  * ChunkSectionCollisionShape with merge-aware removal of fully-occluded voxels:
@@ -41,33 +42,41 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
         int height = maxY - minY;
         if (height <= 0) return;
 
-        boolean[][][] solid = new boolean[CHUNK_SIZE_X][height][CHUNK_SIZE_Z];
+        boolean[][][] solid = new boolean[CHUNK_SIZE_X+2][height+2][CHUNK_SIZE_Z+2];
         BlockPos.MutableBlockPos tmp = new BlockPos.MutableBlockPos();
-        for (int x = 0; x < CHUNK_SIZE_X; x++) {
-            for (int yi = 0; yi < height; yi++) {
-                for (int z = 0; z < CHUNK_SIZE_Z; z++) {
-                    tmp.set(baseX + x , minY + yi , baseZ + z );
+        for (int x = 0; x < CHUNK_SIZE_X+2; x++) {
+            for (int yi = 0; yi < height+2; yi++) {
+                for (int z = 0; z < CHUNK_SIZE_Z+2; z++) {
+                    tmp.set(baseX + x-1, minY + yi-1, baseZ + z-1);
                     BlockState st = chunk.getBlockState(tmp);
                     solid[x][yi][z] = !st.getCollisionShape(chunk, tmp).isEmpty();
                 }
             }
         }
 
-        var mesh = ChunkMeshGenerator.generateMesh(solid);
-        if (mesh.positions.isEmpty())
+        if (true) {
+            var mesh = ChunkMeshGenerator.generateSmoothedMesh(solid);
+            if (mesh.positions.isEmpty())
+                return;
+
+            var floatBuffer = BufferUtils.createFloatBuffer(mesh.positions.size());
+            for (int i = 0; i < mesh.positions.size(); i+=3) {
+                floatBuffer.put(mesh.positions.get(i)     + pos.x()*16);
+                floatBuffer.put(mesh.positions.get(i+1)   + pos.y()*16);
+                floatBuffer.put(mesh.positions.get(i+2)   + pos.z()*16);
+            }
+            IntBuffer intBuffer = BufferUtils.createIntBuffer(mesh.indices.stream().mapToInt(Integer::intValue).toArray());
+
+            try {
+                StlExporter.writeAsciiStl(String.format(Locale.US, "/tmp/section-%d-%d-%d.stl", pos.x(), pos.y(), pos.z()), "section", mesh.positions, mesh.indices);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            this.addChildShape(new MeshCollisionShape(false, new IndexedMesh(floatBuffer, intBuffer)));
+
             return;
-
-        FloatBuffer v = BufferUtils.createFloatBuffer(mesh.positions.size());
-        for (int i = 0; i < mesh.positions.size(); i += 3) {
-            v.put(mesh.positions.get(i) + pos.getX() * 16);
-            v.put(mesh.positions.get(i + 1) + pos.getY() * 16);
-            v.put(mesh.positions.get(i + 2) + pos.getZ() * 16);
         }
-        int[] arr = mesh.indices.stream().mapToInt(Integer::intValue).toArray();
-        IndexedMesh indexedMesh = new IndexedMesh(v, BufferUtils.createIntBuffer(arr));
-        this.addChildShape(new MeshCollisionShape(true, indexedMesh));
-
-        if (true) return;
 
         List<int[]> candidates = new ArrayList<>();
         for (int x = 1; x < CHUNK_SIZE_X - 1; x++) {
