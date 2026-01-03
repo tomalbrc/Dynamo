@@ -50,11 +50,11 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
 
         this.addChildShape(new MeshCollisionShape(false, new IndexedMesh(floatBuffer, intBuffer)));
 
-        try {
-            StlExporter.writeAsciiStl(String.format(Locale.US, "/tmp/section-%d-%d-%d.stl", pos.x(), pos.y(), pos.z()), "section", mesh.positions, mesh.indices);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+//        try {
+//            StlExporter.writeAsciiStl(String.format(Locale.US, "/tmp/section-%d-%d-%d.stl", pos.x(), pos.y(), pos.z()), "section", mesh.positions, mesh.indices);
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        }
     }
 
     public void buildChunkCollisionShape(Level level) {
@@ -67,7 +67,7 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
 
         boolean mesh = true;
 
-        var additionalRad = mesh? 2 : 0;
+        var additionalRad = mesh? 4 : 0;
         var additionalRadHalf = mesh? additionalRad/2 : 0;
         boolean[][][] solid = new boolean[CHUNK_SIZE + additionalRad][CHUNK_SIZE + additionalRad][CHUNK_SIZE + additionalRad];
         BlockPos.MutableBlockPos tmp = new BlockPos.MutableBlockPos();

@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class ChunkMeshGenerator {
+    private static int PADDED = 20;
+
     public static class MeshData {
         public final List<Float> positions = new ArrayList<>();
         public final List<Integer> indices = new ArrayList<>();
@@ -93,10 +95,10 @@ public class ChunkMeshGenerator {
     public static MeshData generateSmoothedMesh(boolean[][][] blocks) {
         MeshData data = new MeshData();
 
-        float[][][] density = new float[18][18][18];
-        for (int x = 0; x < 18; x++) {
-            for (int y = 0; y < 18; y++) {
-                for (int z = 0; z < 18; z++) {
+        float[][][] density = new float[PADDED][PADDED][PADDED];
+        for (int x = 0; x < PADDED; x++) {
+            for (int y = 0; y < PADDED; y++) {
+                for (int z = 0; z < PADDED; z++) {
                     density[x][y][z] = blocks[x][y][z] ? 1.0f : 0.0f;
                 }
             }
@@ -109,7 +111,6 @@ public class ChunkMeshGenerator {
         for (int x = 1; x <= 16; x++) {
             for (int y = 1; y <= 16; y++) {
                 for (int z = 1; z <= 16; z++) {
-                    processMarchingCubeWithEdgeTable(x, y, z, density, threshold, data);
                     processMarchingCubeWithEdgeTable(x, y, z, density, threshold, data);
                 }
             }
@@ -148,6 +149,10 @@ public class ChunkMeshGenerator {
         }
 
         float[][] edgeVertices = new float[12][];
+
+        x-=1;
+        y-=1;
+        z-=1;
 
         if ((edgeMask & 1) != 0) {
             edgeVertices[0] = interpolateVertex(x, y, z, x+1, y, z,
@@ -310,48 +315,31 @@ public class ChunkMeshGenerator {
     }
 
     private static void smoothDensityField(float[][][] density) {
-        float[][][] temp = new float[18][18][18];
+        float[][][] temp = new float[PADDED][PADDED][PADDED];
 
-        for (int x = 0; x < 18; x++) {
-            for (int y = 0; y < 18; y++) {
-                for (int z = 0; z < 18; z++) {
-                    temp[x][y][z] = density[x][y][z];
-                }
-            }
-        }
-
-        for (int x = 0; x < 18; x++) {
-            for (int y = 0; y < 18; y++) {
-                for (int z = 0; z < 18; z++) {
+        for (int x = 1; x < 19; x++) {
+            for (int y = 1; y < 19; y++) {
+                for (int z = 1; z < 19; z++) {
                     float sum = 0;
                     int count = 0;
 
-                    // Use 3x3x3 kernel with bounds checking
                     for (int dx = -1; dx <= 1; dx++) {
                         for (int dy = -1; dy <= 1; dy++) {
                             for (int dz = -1; dz <= 1; dz++) {
-                                int nx = x + dx;
-                                int ny = y + dy;
-                                int nz = z + dz;
-
-                                if (nx >= 0 && nx < 18 && ny >= 0 && ny < 18 && nz >= 0 && nz < 18) {
-                                    sum += density[nx][ny][nz];
-                                    count++;
-                                }
+                                sum += density[x + dx][y + dy][z + dz];
+                                count++;
                             }
                         }
                     }
-
-                    if (count > 0) {
-                        temp[x][y][z] = sum / count;
-                    }
+                    temp[x][y][z] = sum / count;
                 }
             }
         }
 
-        for (int x = 0; x < 18; x++) {
-            for (int y = 0; y < 18; y++) {
-                for (int z = 0; z < 18; z++) {
+        // Apply smoothed values back
+        for (int x = 1; x < 19; x++) {
+            for (int y = 1; y < 19; y++) {
+                for (int z = 1; z < 19; z++) {
                     density[x][y][z] = temp[x][y][z];
                 }
             }
