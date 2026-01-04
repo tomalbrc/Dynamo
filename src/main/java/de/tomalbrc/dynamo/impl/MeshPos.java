@@ -3,8 +3,11 @@ package de.tomalbrc.dynamo.impl;
 import de.tomalbrc.dynamo.impl.config.ModConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Cursor3D;
+import net.minecraft.core.SectionPos;
 import net.minecraft.world.level.ChunkPos;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.function.Consumer;
@@ -23,15 +26,31 @@ public record MeshPos(int x, int y, int z) {
     }
 
     public static int blockToMeshCoord(int i) {
-        return i>>3;
+        return i/SIZE;
     }
 
     public static int meshToBlock(int i) {
-        return i<<3;
+        return i*SIZE;
     }
 
     public static int meshToBlock(int i, int offset) {
         return meshToBlock(i) + offset;
+    }
+
+    public static MeshPos fromLong(Long key) {
+        return new MeshPos(x(key), y(key), z(key));
+    }
+
+    public static int x(long l) {
+        return (int)(l << 0 >> 42);
+    }
+
+    public static int y(long l) {
+        return (int)(l << 44 >> 44);
+    }
+
+    public static int z(long l) {
+        return (int)(l << 22 >> 42);
     }
 
     public BlockPos origin() {
@@ -66,36 +85,60 @@ public record MeshPos(int x, int y, int z) {
         return meshToBlock(z, SIZE-1);
     }
 
-    public static Stream<MeshPos> around(MeshPos pos, int horizontalRad, int minY, int maxY) {
-        int posX = pos.x;
-        int posY = pos.y;
-        int posZ = pos.z;
-        return betweenClosedStream(posX - horizontalRad, posY - minY, posZ - horizontalRad, posX + horizontalRad, posY + maxY, posZ + horizontalRad);
-    }
+    public static Set<MeshPos> inSphere(MeshPos center, double radius) {
+        Set<MeshPos> positions = new HashSet<>();
+        int blockRadius = (int) Math.ceil(radius);
 
-    public static Stream<MeshPos> betweenClosedStream(final int i, final int j, final int k, final int l, final int m, final int n) {
-        return StreamSupport.stream(new Spliterators.AbstractSpliterator<>((long) (l - i + 1) * (m - j + 1) * (n - k + 1), Spliterator.SIZED) {
-            final Cursor3D cursor = new Cursor3D(i, j, k, l, m, n);
-
-            public boolean tryAdvance(Consumer<? super MeshPos> consumer) {
-                if (this.cursor.advance()) {
-                    consumer.accept(new MeshPos(this.cursor.nextX(), this.cursor.nextY(), this.cursor.nextZ()));
-                    return true;
-                } else {
-                    return false;
+        for (int dx = -blockRadius; dx <= blockRadius; dx++) {
+            for (int dy = -blockRadius; dy <= blockRadius; dy++) {
+                for (int dz = -blockRadius; dz <= blockRadius; dz++) {
+                    double distanceSq = dx * dx + dy * dy + dz * dz;
+                    if (distanceSq <= radius * radius) {
+                        positions.add(new MeshPos(center.x + dx, center.y + dy, center.z + dz));
+                    }
                 }
             }
-        }, false);
+        }
+
+        return positions;
+    }
+
+    public static Set<MeshPos> inBox(MeshPos center, int radiusX, int radiusY, int radiusZ) {
+        Set<MeshPos> positions = new HashSet<>();
+        for (int dx = -radiusX; dx <= radiusX; dx++) {
+            for (int dy = -radiusY; dy <= radiusY; dy++) {
+                for (int dz = -radiusZ; dz <= radiusZ; dz++) {
+                    positions.add(new MeshPos(center.x + dx, center.y + dy, center.z + dz));
+                }
+            }
+        }
+        return positions;
+    }
+
+    public static Set<MeshPos> inBox(BlockPos min, BlockPos max) {
+        MeshPos minMesh = MeshPos.of(min);
+        MeshPos maxMesh = MeshPos.of(max);
+        Set<MeshPos> positions = new HashSet<>();
+
+        for (int ix = minMesh.x; ix <= maxMesh.x; ix++) {
+            for (int iy = minMesh.y; iy <= maxMesh.y; iy++) {
+                for (int iz = minMesh.z; iz <= maxMesh.z; iz++) {
+                    positions.add(new MeshPos(ix, iy, iz));
+                }
+            }
+        }
+        return positions;
     }
 
     public long asLong() {
         return asLong(x, y, z);
     }
 
-    public static long asLong(int x, int y, int z) {
-        long l = ((long)x & 4194303L) << 42;
-        l |= ((long)y & 1048575L);
-        l |= ((long)z & 4194303L) << 20;
+    public static long asLong(int i, int j, int k) {
+        long l = 0L;
+        l |= ((long)i & 4194303L) << 42;
+        l |= ((long)j & 1048575L) << 0;
+        l |= ((long)k & 4194303L) << 20;
         return l;
     }
 

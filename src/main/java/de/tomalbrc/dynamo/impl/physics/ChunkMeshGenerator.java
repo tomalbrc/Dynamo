@@ -6,8 +6,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class ChunkMeshGenerator {
-    private static final int OFFSET = 2; // Assuming 2 layers of padding as per your comment
-    private static final int PADDED = ModConfig.getInstance().chunkSize + (OFFSET*2); // input is 20x20x20 with 2 layers of borders so the actual chunk mesh size should 16x16x16
+    private static final int OFFSET = 2;
+    private static final int PADDED = ModConfig.getInstance().chunkSize + (OFFSET*2); // with 2 layers of borders
 
     public static class MeshData {
         public final List<Float> positions = new ArrayList<>();
@@ -110,7 +110,7 @@ public class ChunkMeshGenerator {
 
         smoothDensityField(density);
 
-        float threshold = 0.25f;
+        float threshold = 0.1f;
 
         for (int x = OFFSET; x < PADDED - OFFSET; x++) {
             for (int y = OFFSET; y < PADDED - OFFSET; y++) {

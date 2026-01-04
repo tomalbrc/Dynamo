@@ -16,6 +16,9 @@ import eu.pb4.polymer.virtualentity.api.elements.VirtualElement;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.network.protocol.game.ClientboundBundlePacket;
 import net.minecraft.network.protocol.game.ClientboundEntityPositionSyncPacket;
 import net.minecraft.network.protocol.game.ClientboundUpdateAttributesPacket;
 import net.minecraft.resources.Identifier;
@@ -82,6 +85,7 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
         chassis.setTeleportDuration(2);
         chassis.setInterpolationDuration(2);
         chassis.setScale(new Vector3f(halfWidth, halfHeight, halfLength).mul(2.f));
+        chassis.ignorePositionUpdates();
 
         this.holder = new ElementHolder();
         this.holder.addElement(chassis);
@@ -145,8 +149,8 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
 
             for (int i = 0; i < vehicle.getNumWheels(); i++) {
                 var e = new ItemDisplayElement(Items.DIAMOND_BLOCK);
-                e.setTeleportDuration(3);
-                e.setInterpolationDuration(3);
+                e.setTeleportDuration(2);
+                e.setInterpolationDuration(2);
                 e.setScale(new Vector3f(radius + 0.2f));
                 this.holder.addElement(e);
                 this.wheels.add(e);
@@ -210,13 +214,17 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
 
             var pos = this.vehicle.getPhysicsLocation(null);
             this.setPos(pos.x, pos.y, pos.z);
-            this.holder.sendPacket(new ClientboundEntityPositionSyncPacket(this.getId(), new PositionMoveRotation(position(), position(), 0f, 0f), false));
+
+            List<Packet<? super @NotNull ClientGamePacketListener>> packets = new ArrayList<>();
+            var pos1 =(new ClientboundEntityPositionSyncPacket(this.getId(), new PositionMoveRotation(position(), position(), 0f, 0f), false));
+            packets.add(pos1);
             for (VirtualElement element : this.holder.getElements()) {
                 if (element instanceof GenericEntityElement entityElement) {
                     var id = entityElement.getEntityId();
-                    this.holder.sendPacket(new ClientboundEntityPositionSyncPacket(id, new PositionMoveRotation(element.getCurrentPos(), element.getCurrentPos(), 0f, 0f), false));
+                    packets.add(new ClientboundEntityPositionSyncPacket(id, new PositionMoveRotation(element.getCurrentPos(), element.getCurrentPos(), 0f, 0f), false));
                 }
             }
+            this.holder.sendPacket(new ClientboundBundlePacket(packets));
         }
     }
 

@@ -145,8 +145,8 @@ public class Dynamo implements ModInitializer {
         var holder = new ElementHolder();
 
         ItemDisplayElement displayElement = new ItemDisplayElement(Items.DIAMOND.getDefaultInstance());
-        displayElement.setTeleportDuration(3);
-        displayElement.setInterpolationDuration(3);
+        displayElement.setTeleportDuration(2);
+        displayElement.setInterpolationDuration(2);
         world.addElement(new DynamicElement(body, e -> {
             var pos = e.physicsBody().getTransform(null).getTranslation();
             displayElement.setOverridePos(new Vec3(pos.x, pos.y+0.01, pos.z));
