@@ -1,11 +1,13 @@
 package de.tomalbrc.dynamo.impl.physics;
 
+import de.tomalbrc.dynamo.impl.config.ModConfig;
+
 import java.util.ArrayList;
 import java.util.List;
 
 public class ChunkMeshGenerator {
-    private static final int PADDED = 20; // input is 20x20x20 with 2 layers of borders so the actual chunk mesh size should 16x16x16
     private static final int OFFSET = 2; // Assuming 2 layers of padding as per your comment
+    private static final int PADDED = ModConfig.getInstance().chunkSize + (OFFSET*2); // input is 20x20x20 with 2 layers of borders so the actual chunk mesh size should 16x16x16
 
     public static class MeshData {
         public final List<Float> positions = new ArrayList<>();
@@ -121,11 +123,8 @@ public class ChunkMeshGenerator {
         return data;
     }
 
-    private static void processMarchingCube(int x, int y, int z, float[][][] density,
-                                            float threshold, MeshData data) {
-        // Standard Corner Indexing:
-        // 0: (0,0,0), 1: (1,0,0), 2: (1,0,1), 3: (0,0,1)
-        // 4: (0,1,0), 5: (1,1,0), 6: (1,1,1), 7: (0,1,1)
+    private static void processMarchingCube(int x, int y, int z, float[][][] density, float threshold, MeshData data) {
+
         float[] d = new float[8];
         d[0] = density[x][y][z];
         d[1] = density[x+1][y][z];
@@ -151,8 +150,6 @@ public class ChunkMeshGenerator {
 
         float[][] v = new float[12][3];
 
-        // Linear interpolation for vertices on edges
-        // Note: Subtracting OFFSET so the mesh starts at (0,0,0) local space
         if ((edgeMask & 1) != 0) v[0] = interp(x,y,z, x+1,y,z, d[0], d[1], threshold);
         if ((edgeMask & 2) != 0) v[1] = interp(x+1,y,z, x+1,y,z+1, d[1], d[2], threshold);
         if ((edgeMask & 4) != 0) v[2] = interp(x+1,y,z+1, x,y,z+1, d[2], d[3], threshold);
@@ -195,7 +192,7 @@ public class ChunkMeshGenerator {
 
     private static void calculateAndAddNormal(MeshData data, int baseIndex) {
         int idx = baseIndex * 3;
-        // Vertices of the triangle
+
         float x0 = data.positions.get(idx), y0 = data.positions.get(idx+1), z0 = data.positions.get(idx+2);
         float x1 = data.positions.get(idx+3), y1 = data.positions.get(idx+4), z1 = data.positions.get(idx+5);
         float x2 = data.positions.get(idx+6), y2 = data.positions.get(idx+7), z2 = data.positions.get(idx+8);
@@ -216,21 +213,21 @@ public class ChunkMeshGenerator {
     }
 
     private static void smoothDensityField(float[][][] density) {
-        // 3D Box Blur implementation
         float[][][] temp = new float[PADDED][PADDED][PADDED];
         for (int x = 1; x < PADDED - 1; x++) {
             for (int y = 1; y < PADDED - 1; y++) {
                 for (int z = 1; z < PADDED - 1; z++) {
                     float sum = 0;
+
                     for (int dx = -1; dx <= 1; dx++)
                         for (int dy = -1; dy <= 1; dy++)
                             for (int dz = -1; dz <= 1; dz++)
                                 sum += density[x + dx][y + dy][z + dz];
+
                     temp[x][y][z] = sum / 27f;
                 }
             }
         }
-        // Copy back
         for (int x = 1; x < PADDED - 1; x++)
             System.arraycopy(temp[x], 0, density[x], 0, PADDED);
     }
