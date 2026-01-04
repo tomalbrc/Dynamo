@@ -71,7 +71,6 @@ public class ChunkCache {
 
     public void tick(ServerLevel level, DynamicWorld world) {
         Set<BlockPos> interestingPositions = new HashSet<>();
-        Set<MeshPos> keepMeshPositions = new HashSet<>();
 
         world.physicsSpace.getRigidBodyList().forEach(x -> {
             if (x.isStatic())
@@ -82,7 +81,7 @@ public class ChunkCache {
             BlockPos centerBlock = BlockPos.containing(pos.x, pos.y, pos.z);
 
             MeshPos meshCenter = MeshPos.of(centerBlock);
-            var meshAround = MeshPos.inSphere(meshCenter, 2);
+            var meshAround = MeshPos.inSphere(meshCenter, 1);
             meshAround.forEach(m -> {
                 interestingPositions.add(m.center());
             });
@@ -97,18 +96,11 @@ public class ChunkCache {
             boolean isDirty = dirty.contains(meshPos);
 
             if ((!isPresent && !isProcessing) || isDirty) {
-                PhysicsBody oldBody = terrainObjects.get(meshKey);
-
-                terrainObjectsProcessing.add(meshKey);
+                this.terrainObjectsProcessing.add(meshKey);
                 addSectionPhysics(level, level.getChunkAt(blockPos), meshPos);
 
                 if (dirty.remove(meshPos)) {
                     wakeNearbyElements(world, blockPos);
-                }
-
-                if (oldBody != null) {
-                    physicsThread.enqueue(space -> space.removeCollisionObject(oldBody));
-                    terrainObjects.remove(meshKey, oldBody);
                 }
             }
         }
