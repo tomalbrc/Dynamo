@@ -23,8 +23,8 @@ public class DynamicWorld {
     public DynamicWorld() {
         this.physicsThread = new PhysicsThread();
         this.physicsSpace = this.getPhysicsThread().getPhysicsSpace();
-        this.physicsSpace.setMaxSubSteps(4);
-        this.physicsSpace.setAccuracy(1f/60f);
+        this.physicsSpace.setMaxSubSteps(8);
+        this.physicsSpace.setAccuracy(1f/120f);
 
         this.chunkCache = new ChunkCache(this.physicsThread);
     }

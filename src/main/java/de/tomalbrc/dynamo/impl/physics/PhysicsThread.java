@@ -12,7 +12,7 @@ public final class PhysicsThread implements AutoCloseable {
     private PhysicsSpace physicsSpace;
     private final Queue<Consumer<PhysicsSpace>> queue = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean running = new AtomicBoolean(true);
-    private final Thread thread;
+    public final Thread thread;
 
     private static final long SLEEP_NANOS = 16_666_667L;
 
@@ -41,9 +41,14 @@ public final class PhysicsThread implements AutoCloseable {
 
     private void runLoop() {
         long lastTime = System.nanoTime();
-        float lastElapsed = 1f/60f;
 
         while (running.get()) {
+            long now = System.nanoTime();
+            // Calculate the actual time passed since the last loop started
+            float deltaTime = (now - lastTime) / 1_000_000_000f;
+            lastTime = now;
+
+            // Process the queue
             Consumer<PhysicsSpace> r;
             while ((r = queue.poll()) != null) {
                 try {
@@ -54,14 +59,17 @@ public final class PhysicsThread implements AutoCloseable {
             }
 
             if (this.physicsSpace != null) {
-                this.physicsSpace.update(1f/60f, 4);
+                // Use the actual measured deltaTime
+                // We cap it to avoid "the spiral of death" if the window is moved
+                // or the thread is suspended (e.g., 0.1s max)
+                float tpf = Math.min(deltaTime, 0.1f);
+                this.physicsSpace.update(tpf, 4);
             }
 
-            long now = System.nanoTime();
-            long elapsed = now - lastTime;
-            long sleep = SLEEP_NANOS - elapsed;
-            lastTime = now;
-            //lastElapsed = elapsed;
+            // Calculate how much time we spent doing work to determine sleep duration
+            long workDoneTime = System.nanoTime();
+            long elapsedWork = workDoneTime - now;
+            long sleep = SLEEP_NANOS - elapsedWork;
 
             if (sleep > 0) {
                 LockSupport.parkNanos(sleep);

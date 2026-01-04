@@ -39,7 +39,7 @@ import java.util.concurrent.Executors;
 
 public class Dynamo implements ModInitializer {
     public static final Logger LOGGER = LogUtils.getLogger();
-    public static final ExecutorService COLLISION_GENERATOR_EXECUTOR = Executors.newWorkStealingPool();
+    public static final ExecutorService COLLISION_GENERATOR_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
     public static final String MODID = "dynamo";
 
     public static MinecraftServer SERVER;
@@ -107,8 +107,8 @@ public class Dynamo implements ModInitializer {
         var holder = new ElementHolder();
 
         ItemDisplayElement displayElement = new ItemDisplayElement(Items.STONE.getDefaultInstance());
-        displayElement.setTeleportDuration(3);
-        displayElement.setInterpolationDuration(3);
+        displayElement.setTeleportDuration(2);
+        displayElement.setInterpolationDuration(2);
         world.addElement(new DynamicElement(body, e -> {
             var pos = e.physicsBody().getTransform(null).getTranslation();
             displayElement.setOverridePos(new Vec3(pos.x, pos.y+0.01, pos.z));

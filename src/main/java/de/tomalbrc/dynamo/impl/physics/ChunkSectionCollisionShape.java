@@ -33,9 +33,9 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
     public MeshCollisionShape simpleShape;
     public boolean[][][] solid;
 
-    public ChunkSectionCollisionShape(Level level, SectionPos sectionPos, boolean smooth) {
+    public ChunkSectionCollisionShape(Level level, SectionPos sectionPos) {
         this.pos = sectionPos;
-        buildChunkCollisionShape(level, smooth);
+        this.buildChunkCollisionShape(level);
     }
 
     public CompletableFuture<MeshCollisionShape> smoothFuture() {
@@ -48,7 +48,7 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
     }
 
     protected void buildMesh(boolean[][][] solid) {
-        var mesh = ChunkMeshGenerator.generateMesh(solid);
+        var mesh = ChunkMeshGenerator.generateSmoothedMesh(solid);
         final var shape = getMeshCollisionShape(mesh);
         if (shape == null) return;
         this.simpleShape = shape;
@@ -74,7 +74,7 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
             floatBuffer.put(mesh.positions.get(i + 2) + pos.z() * 16);
 
             mesh.positions.set(i, floatBuffer.get(i));
-            mesh.positions.set(i + 1, floatBuffer.get(i+1));
+            mesh.positions.set(i + 1, floatBuffer.get(i+1) + 1.f);
             mesh.positions.set(i + 2, floatBuffer.get(i+2));
         }
         IntBuffer intBuffer = BufferUtils.createIntBuffer(mesh.indices.stream().mapToInt(Integer::intValue).toArray());
@@ -87,7 +87,7 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
         this.addChildShape(newShape);
     }
 
-    public void buildChunkCollisionShape(Level level, boolean smooth) {
+    public void buildChunkCollisionShape(Level level) {
         int baseX = pos.minBlockX();
         int baseZ = pos.minBlockZ();
         int minY = pos.minBlockY();
@@ -100,15 +100,15 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
         var additionalRad = mesh? 4 : 0;
         var additionalRadHalf = mesh? additionalRad/2 : 0;
 
-        if (solid == null) {
-            solid = new boolean[CHUNK_SIZE + additionalRad][CHUNK_SIZE + additionalRad][CHUNK_SIZE + additionalRad];
+        if (this.solid == null) {
+            this.solid = new boolean[CHUNK_SIZE + additionalRad][CHUNK_SIZE + additionalRad][CHUNK_SIZE + additionalRad];
             BlockPos.MutableBlockPos tmp = new BlockPos.MutableBlockPos();
             for (int x = 0; x < CHUNK_SIZE + additionalRad; x++) {
                 for (int y = 0; y < CHUNK_SIZE + additionalRad; y++) {
                     for (int z = 0; z < CHUNK_SIZE + additionalRad; z++) {
-                        tmp.set(baseX + x - additionalRadHalf, minY + y - additionalRadHalf, baseZ + z - additionalRadHalf);
+                        tmp.set((baseX + x) - additionalRadHalf, (minY + y) - additionalRadHalf, (baseZ + z) - additionalRadHalf);
                         BlockState st = level.getBlockState(tmp);
-                        solid[x][y][z] = !st.is(BlockTags.LEAVES) && !st.getCollisionShape(level, tmp).isEmpty();
+                        this.solid[x][y][z] = !st.is(BlockTags.LEAVES) && !st.getCollisionShape(level, tmp).isEmpty();
                     }
                 }
             }

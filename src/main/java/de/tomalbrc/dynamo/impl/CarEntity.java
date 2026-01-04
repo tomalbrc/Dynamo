@@ -62,8 +62,8 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
         this.noPhysics = true;
 
         chassis = new ItemDisplayElement(Items.DIAMOND_BLOCK);
-        chassis.setTeleportDuration(3);
-        chassis.setInterpolationDuration(3);
+        chassis.setTeleportDuration(2);
+        chassis.setInterpolationDuration(2);
         chassis.setScale(new Vector3f(halfWidth, halfHeight, halfLength).mul(2.f));
 
         this.holder = new ElementHolder();
@@ -170,8 +170,7 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
 
             if (this.isVehicle() && this.getFirstPassenger() instanceof ServerPlayer player) {
                 var input = getInput(player);
-                if (vehicle.getLinearVelocity(null).length() < 10) this.vehicle.accelerate((float) input.z * 80f);
-                else this.vehicle.accelerate(0f);
+                this.vehicle.accelerate((float) input.z * 80f);
 
                 this.steering = Mth.clamp(Mth.lerp(0.2f, steering, (float) input.x * 30f), -45, 45);
                 this.vehicle.steer(steering * Mth.DEG_TO_RAD);
@@ -242,6 +241,8 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
     }
 
     public void reset() {
-        this.world.getPhysicsThread().enqueue(space -> vehicle.setPhysicsRotation(Quaternion.IDENTITY));
+        this.world.getPhysicsThread().enqueue(space -> {
+            vehicle.setPhysicsRotation(Quaternion.IDENTITY);
+        });
     }
 }

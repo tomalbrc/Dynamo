@@ -1,14 +1,10 @@
 package de.tomalbrc.dynamo.impl.config;
 
-import com.google.gson.FieldNamingPolicy;
-import com.google.gson.FieldNamingStrategy;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+import com.google.gson.*;
 import de.tomalbrc.dynamo.Dynamo;
 import net.fabricmc.loader.api.FabricLoader;
 
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 
@@ -47,7 +43,12 @@ public class ModConfig {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-            return;
+        } else {
+            try {
+                ModConfig.instance = gson.fromJson(new FileReader(ModConfig.CONFIG_FILE_PATH.toFile()), ModConfig.class);
+            } catch (FileNotFoundException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 }
