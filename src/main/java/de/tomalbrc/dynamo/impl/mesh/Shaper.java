@@ -1,4 +1,4 @@
-package de.tomalbrc.dynamo.impl.physics;
+package de.tomalbrc.dynamo.impl.mesh;
 
 import com.jme3.bullet.collision.shapes.BoxCollisionShape;
 import com.jme3.bullet.collision.shapes.CollisionShape;

@@ -1,4 +1,4 @@
-package de.tomalbrc.dynamo.impl;
+package de.tomalbrc.dynamo.impl.util;
 
 import de.tomalbrc.dynamo.Dynamo;
 import eu.pb4.polymer.virtualentity.api.ElementHolder;

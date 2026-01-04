@@ -1,17 +1,18 @@
-package de.tomalbrc.dynamo;
+package de.tomalbrc.dynamo.impl.util;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.List;
+import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
 
 public final class StlExporter {
-
     public static void writeAsciiStl(
             String filename,
             String solidName,
-            List<Float> vertices,
-            List<Integer> indices
+            FloatBuffer vertices,
+            IntBuffer indices,
+            int indicesCnt
     ) throws IOException {
 
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(filename))) {
@@ -19,7 +20,7 @@ public final class StlExporter {
             writer.write("solid " + solidName);
             writer.newLine();
 
-            for (int t = 0; t < indices.size(); t += 3) {
+            for (int t = 0; t < indicesCnt; t += 3) {
                 int i0 = indices.get(t);
                 int i1 = indices.get(t + 1);
                 int i2 = indices.get(t + 2);
@@ -48,7 +49,6 @@ public final class StlExporter {
                     nx /= len; ny /= len; nz /= len;
                 }
 
-                // Original side
                 writer.write("  facet normal " + nx + " " + ny + " " + nz);
                 writer.newLine();
                 writer.write("    outer loop");
@@ -64,8 +64,7 @@ public final class StlExporter {
                 writer.write("  endfacet");
                 writer.newLine();
 
-                // Reverse side
-                // Invert normal and triangle winding
+                // backside for double sided tris
                 writer.write("  facet normal " + (-nx) + " " + (-ny) + " " + (-nz));
                 writer.newLine();
                 writer.write("    outer loop");

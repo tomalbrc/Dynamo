@@ -1,4 +1,4 @@
-package de.tomalbrc.dynamo.impl;
+package de.tomalbrc.dynamo.impl.util;
 
 import electrostatic4j.snaploader.LibraryInfo;
 import electrostatic4j.snaploader.LoadingCriterion;

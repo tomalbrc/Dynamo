@@ -1,7 +1,7 @@
 package de.tomalbrc.dynamo.impl.world;
 
 import com.jme3.bullet.PhysicsSpace;
-import de.tomalbrc.dynamo.impl.MeshPos;
+import de.tomalbrc.dynamo.impl.mesh.MeshPos;
 import de.tomalbrc.dynamo.impl.physics.DynamicElement;
 import de.tomalbrc.dynamo.impl.physics.PhysicsThread;
 import net.minecraft.core.BlockPos;

@@ -1,8 +1,7 @@
-package de.tomalbrc.dynamo.impl;
+package de.tomalbrc.dynamo.impl.mesh;
 
 import de.tomalbrc.dynamo.impl.config.ModConfig;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.SectionPos;
 import net.minecraft.core.Vec3i;
 import net.minecraft.world.level.ChunkPos;
 import org.jetbrains.annotations.NotNull;

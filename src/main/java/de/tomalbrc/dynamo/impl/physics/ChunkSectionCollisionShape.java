@@ -5,19 +5,17 @@ import com.jme3.bullet.collision.shapes.CompoundCollisionShape;
 import com.jme3.bullet.collision.shapes.MeshCollisionShape;
 import com.jme3.bullet.collision.shapes.infos.IndexedMesh;
 import com.jme3.math.Vector3f;
-import com.jme3.util.BufferUtils;
 import de.tomalbrc.dynamo.Dynamo;
-import de.tomalbrc.dynamo.StlExporter;
-import de.tomalbrc.dynamo.impl.MeshPos;
+import de.tomalbrc.dynamo.impl.util.StlExporter;
+import de.tomalbrc.dynamo.impl.mesh.MeshPos;
 import de.tomalbrc.dynamo.impl.config.ModConfig;
+import de.tomalbrc.dynamo.impl.mesh.ChunkMeshGenerator;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
-import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
-import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -39,38 +37,23 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
     }
 
     protected void buildMesh(boolean[][][] solid) {
-        var mesh = ChunkMeshGenerator.generateSmoothedMesh(solid);
-        final var shape = getMeshCollisionShape(mesh);
+        var mesh = ChunkMeshGenerator.generateSmoothedMesh(solid, pos.getX() * CHUNK_SIZE, pos.getY() * CHUNK_SIZE, pos.getZ() * CHUNK_SIZE);
+        if (mesh.positions.capacity() == 0)
+            return;
+
+        var shape = new MeshCollisionShape(false, new IndexedMesh(mesh.positions, mesh.indices));
+
         if (shape == null) return;
         this.simpleShape = shape;
         this.addChildShape(shape);
 
         if (ModConfig.getInstance().exportMesh) {
             try {
-                StlExporter.writeAsciiStl(String.format(Locale.US, "/tmp/section-%d-%d-%d.stl", pos.getX(), pos.getY(), pos.getZ()), "section", mesh.positions, mesh.indices);
+                StlExporter.writeAsciiStl(String.format(Locale.US, "/tmp/section-%d-%d-%d.stl", pos.getX(), pos.getY(), pos.getZ()), "section", mesh.positions, mesh.indices, mesh.indices.capacity());
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         }
-    }
-
-    private @Nullable MeshCollisionShape getMeshCollisionShape(ChunkMeshGenerator.MeshData mesh) {
-        if (mesh.positions.isEmpty())
-            return null;
-
-        var floatBuffer = BufferUtils.createFloatBuffer(mesh.positions.size());
-        for (int i = 0; i < mesh.positions.size(); i += 3) {
-            floatBuffer.put(mesh.positions.get(i) +     pos.getX() * CHUNK_SIZE);
-            floatBuffer.put(mesh.positions.get(i + 1) + pos.getY() * CHUNK_SIZE);
-            floatBuffer.put(mesh.positions.get(i + 2) + pos.getZ() * CHUNK_SIZE);
-
-            mesh.positions.set(i, floatBuffer.get(i));
-            mesh.positions.set(i + 1, floatBuffer.get(i+1) + 1.f);
-            mesh.positions.set(i + 2, floatBuffer.get(i+2));
-        }
-        IntBuffer intBuffer = BufferUtils.createIntBuffer(mesh.indices.stream().mapToInt(Integer::intValue).toArray());
-
-        return new MeshCollisionShape(false, new IndexedMesh(floatBuffer, intBuffer));
     }
 
     public void buildChunkCollisionShape(Level level) {
