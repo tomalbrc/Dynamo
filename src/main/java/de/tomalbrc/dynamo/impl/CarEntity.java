@@ -76,7 +76,8 @@ public class CarEntity extends Entity implements PolymerEntity {
         this.setInvisible(true);
 
         chassis = new ItemDisplayElement(Items.DIAMOND_BLOCK);
-        chassis.setTeleportDuration(2);
+        chassis.setTranslation(new Vector3f(0,-0.25f,0));
+        chassis.setTeleportDuration(3);
         chassis.setInterpolationDuration(2);
         chassis.setScale(new Vector3f(halfWidth, halfHeight, halfLength).mul(2.f));
         chassis.ignorePositionUpdates();
@@ -162,7 +163,8 @@ public class CarEntity extends Entity implements PolymerEntity {
 
             for (int i = 0; i < vehicle.getNumWheels(); i++) {
                 var e = new ItemDisplayElement(Items.DIAMOND_BLOCK);
-                e.setTeleportDuration(2);
+                e.setTranslation(new Vector3f(0,-0.25f,0));
+                e.setTeleportDuration(3);
                 e.setInterpolationDuration(2);
                 e.setScale(new Vector3f(radius + 0.2f));
                 this.holder.addElement(e);

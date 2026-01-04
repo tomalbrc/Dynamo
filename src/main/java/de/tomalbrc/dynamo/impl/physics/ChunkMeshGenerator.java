@@ -110,7 +110,7 @@ public class ChunkMeshGenerator {
 
         smoothDensityField(density);
 
-        float threshold = 0.1f;
+        float threshold = 0.25f;
 
         for (int x = OFFSET; x < PADDED - OFFSET; x++) {
             for (int y = OFFSET; y < PADDED - OFFSET; y++) {
