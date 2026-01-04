@@ -74,7 +74,7 @@ public class ChunkCache {
         Set<BlockPos> interestingPositions = new HashSet<>();
         Set<MeshPos> keepMeshPositions = new HashSet<>();
 
-        world.physicsSpace.getRigidBodyList().iterator().forEachRemaining(x -> {
+        world.physicsSpace.getRigidBodyList().forEach(x -> {
             if (x.isStatic())
                 return;
 
