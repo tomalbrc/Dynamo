@@ -74,18 +74,21 @@ public class ChunkCache {
         Set<BlockPos> interestingPositions = new HashSet<>();
         Set<MeshPos> keepMeshPositions = new HashSet<>();
 
-        for (DynamicElement element : world.getElements()) {
-            var transform = element.physicsBody().getTransform(null);
+        world.physicsSpace.getRigidBodyList().iterator().forEachRemaining(x -> {
+            if (x.isStatic())
+                return;
+
+            var transform = x.getTransform(null);
             var pos = transform.getTranslation();
             BlockPos centerBlock = BlockPos.containing(pos.x, pos.y, pos.z);
 
             MeshPos meshCenter = MeshPos.of(centerBlock);
-            var meshAround = MeshPos.inSphere(meshCenter, 1.5);
+            var meshAround = MeshPos.inSphere(meshCenter, 2);
             meshAround.forEach(m -> {
                 interestingPositions.add(m.center());
                 //keepMeshPositions.add(m);
             });
-        }
+        });
 
         //terrainObjects.entrySet().removeIf(entry -> {
         //    if (!keepMeshPositions.contains(MeshPos.fromLong(entry.getKey()))) {

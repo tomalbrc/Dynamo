@@ -85,9 +85,9 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
 
         var additionalRad = mesh? 4 : 0;
         var additionalRadHalf = mesh? additionalRad/2 : 0;
-
+        
+        boolean hasSolid = this.solid != null;
         if (this.solid == null) {
-            boolean hasSolid = false;
             this.solid = new boolean[CHUNK_SIZE + additionalRad][CHUNK_SIZE + additionalRad][CHUNK_SIZE + additionalRad];
             BlockPos.MutableBlockPos tmp = new BlockPos.MutableBlockPos();
             for (int x = 0; x < CHUNK_SIZE + additionalRad; x++) {
@@ -95,11 +95,16 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
                     for (int z = 0; z < CHUNK_SIZE + additionalRad; z++) {
                         tmp.set((baseX + x) - additionalRadHalf, (minY + y) - additionalRadHalf, (baseZ + z) - additionalRadHalf);
                         BlockState st = level.getBlockState(tmp);
-                        this.solid[x][y][z] = !st.is(BlockTags.LEAVES) && !st.getCollisionShape(level, tmp).isEmpty();
+                        boolean isSolid = !st.is(BlockTags.LEAVES) && !st.getCollisionShape(level, tmp).isEmpty();
+                        this.solid[x][y][z] = isSolid;
+                        hasSolid |= isSolid;
                     }
                 }
             }
         }
+
+        if (!hasSolid)
+            return;
 
         if (mesh) {
             buildMesh(solid);
