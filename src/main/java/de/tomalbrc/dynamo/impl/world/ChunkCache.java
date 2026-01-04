@@ -86,17 +86,8 @@ public class ChunkCache {
             var meshAround = MeshPos.inSphere(meshCenter, 2);
             meshAround.forEach(m -> {
                 interestingPositions.add(m.center());
-                //keepMeshPositions.add(m);
             });
         });
-
-        //terrainObjects.entrySet().removeIf(entry -> {
-        //    if (!keepMeshPositions.contains(MeshPos.fromLong(entry.getKey()))) {
-        //        physicsThread.enqueue(space -> space.removeCollisionObject(entry.getValue()));
-        //        return true;
-        //    }
-        //    return false;
-        //});
 
         for (BlockPos blockPos : interestingPositions) {
             MeshPos meshPos = MeshPos.of(blockPos);

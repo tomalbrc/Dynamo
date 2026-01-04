@@ -95,7 +95,6 @@ public class ChunkMeshGenerator {
         }
     }
 
-
     public static MeshData generateSmoothedMesh(boolean[][][] blocks) {
         MeshData data = new MeshData();
         float[][][] density = new float[PADDED][PADDED][PADDED];

@@ -39,7 +39,7 @@ import java.util.concurrent.Executors;
 
 public class Dynamo implements ModInitializer {
     public static final Logger LOGGER = LogUtils.getLogger();
-    public static final ExecutorService COLLISION_GENERATOR_EXECUTOR = Executors.newWorkStealingPool();
+    public static final ExecutorService COLLISION_GENERATOR_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
     public static final String MODID = "dynamo";
 
     public static MinecraftServer SERVER;
