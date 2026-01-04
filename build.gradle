@@ -47,7 +47,7 @@ dependencies {
     implementation include("io.github.electrostat-lab:snaploader:1.0.0-stable")
     libbulletVariants.each { variant ->
         implementation include("com.github.stephengold:Libbulletjme-${variant}:22.0.3")
-        runtimeOnly("com.github.stephengold:Libbulletjme-${variant}:22.0.3:SpDebug")
+        runtimeOnly("com.github.stephengold:Libbulletjme-${variant}:22.0.3:SpRelease")
     }
 }
 

@@ -8,33 +8,39 @@ import com.jme3.math.Quaternion;
 import de.tomalbrc.dynamo.impl.physics.DynamicElement;
 import de.tomalbrc.dynamo.impl.world.DynamicWorld;
 import eu.pb4.polymer.core.api.entity.PolymerEntity;
+import eu.pb4.polymer.core.mixin.entity.LivingEntityAccessor;
+import eu.pb4.polymer.core.mixin.entity.SynchedEntityDataAccessor;
 import eu.pb4.polymer.virtualentity.api.ElementHolder;
 import eu.pb4.polymer.virtualentity.api.attachment.EntityAttachment;
 import eu.pb4.polymer.virtualentity.api.elements.GenericEntityElement;
 import eu.pb4.polymer.virtualentity.api.elements.ItemDisplayElement;
 import eu.pb4.polymer.virtualentity.api.elements.VirtualElement;
+import eu.pb4.polymer.virtualentity.api.tracker.EntityTrackedData;
+import eu.pb4.polymer.virtualentity.mixin.accessors.DisplayAccessor;
+import eu.pb4.polymer.virtualentity.mixin.accessors.EntityAccessor;
+import eu.pb4.polymer.virtualentity.mixin.accessors.ItemDisplayAccessor;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
-import net.minecraft.network.protocol.game.ClientboundBundlePacket;
-import net.minecraft.network.protocol.game.ClientboundEntityPositionSyncPacket;
-import net.minecraft.network.protocol.game.ClientboundUpdateAttributesPacket;
+import net.minecraft.network.protocol.game.*;
+import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.HumanoidArm;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.PositionMoveRotation;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 import org.joml.Quaternionf;
@@ -44,10 +50,10 @@ import xyz.nucleoid.packettweaker.PacketContext;
 import java.util.ArrayList;
 import java.util.List;
 
-public class CarEntity extends LivingEntity implements PolymerEntity {
+public class CarEntity extends Entity implements PolymerEntity {
     public static Identifier ID = Util.id("car");
 
-    float halfWidth = 0.7f;
+    float halfWidth = 0.8f;
     float halfHeight = 0.1f;
     float halfLength = 1.f;
 
@@ -59,27 +65,15 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
     PhysicsVehicle vehicle;
     DynamicElement loader;
 
-    private static final float BOOST_STRENGTH = 2000.0f; // Adjust based on vehicle mass
+    private static final float BOOST_STRENGTH = 4000.0f;
     private boolean isBoosting = false;
 
-    public void setBoosting(boolean active) {
-        this.isBoosting = active;
-    }
-
-    private void applyBoost() {
-        if (isBoosting) {
-            com.jme3.math.Vector3f forward = vehicle.getForwardVector(null);
-            com.jme3.math.Vector3f boostForce = forward.mult(BOOST_STRENGTH);
-            vehicle.applyCentralForce(boostForce);
-            vehicle.applyCentralForce(new com.jme3.math.Vector3f(0, -100f, 0));
-        }
-    }
-
-    public CarEntity(EntityType<? extends @NotNull LivingEntity> entityType, Level level) {
+    public CarEntity(EntityType<? extends @NotNull Entity> entityType, Level level) {
         super(entityType, level);
 
         this.setNoGravity(true);
         this.noPhysics = true;
+        this.setInvisible(true);
 
         chassis = new ItemDisplayElement(Items.DIAMOND_BLOCK);
         chassis.setTeleportDuration(2);
@@ -91,6 +85,25 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
         this.holder.addElement(chassis);
         EntityAttachment.ofTicking(holder, this);
     }
+
+    @Override
+    protected void defineSynchedData(SynchedEntityData.@NotNull Builder builder) {
+
+    }
+
+    public void setBoosting(boolean active) {
+        this.isBoosting = active;
+    }
+
+    private void applyBoost() {
+        if (isBoosting) {
+            com.jme3.math.Vector3f forward = vehicle.getForwardVector(null);
+            com.jme3.math.Vector3f boostForce = forward.mult(BOOST_STRENGTH);
+            vehicle.applyCentralForce(boostForce);
+            //vehicle.applyCentralForce(new com.jme3.math.Vector3f(0, -100f, 0));
+        }
+    }
+
 
     @Override
     public void onRemoval(@NotNull RemovalReason removalReason) {
@@ -126,9 +139,9 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
 
             boolean front = true;
             boolean rear = false;
-            float xOffset = halfWidth * 1.0f;
+            float xOffset = halfWidth * 1.1f;
             float frontAxleZ = halfLength * 1.2f;
-            float rearAxleZ = -halfLength * 1.0f;
+            float rearAxleZ = -halfLength * 1.01f;
             float radius = .5f;
             float restLength = 0.3f;
 
@@ -165,9 +178,33 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
 
     @Override
     public void modifyRawEntityAttributeData(List<ClientboundUpdateAttributesPacket.AttributeSnapshot> data, ServerPlayer player, boolean initial) {
-        data.add(new ClientboundUpdateAttributesPacket.AttributeSnapshot(Attributes.SCALE, 0.2f, List.of()));
-
+        //data.add(new ClientboundUpdateAttributesPacket.AttributeSnapshot(Attributes.SCALE, 0.2f, List.of()));
         PolymerEntity.super.modifyRawEntityAttributeData(data, player, initial);
+    }
+
+    @Override
+    public void modifyRawTrackedData(List<SynchedEntityData.DataValue<?>> data, ServerPlayer player, boolean initial) {
+        //var flag = setFlag((byte)1, EntityTrackedData.INVISIBLE_FLAG_INDEX, true);
+        //data.add(new SynchedEntityData.DataValue<>(LivingEntityAccessor.getDATA_LIVING_ENTITY_FLAGS().id(), LivingEntityAccessor.getDATA_LIVING_ENTITY_FLAGS().serializer(), flag));
+        data.add(new SynchedEntityData.DataValue<>(EntityTrackedData.SILENT.id(), EntityTrackedData.SILENT.serializer(), true));
+        data.add(new SynchedEntityData.DataValue<>(DisplayAccessor.getDATA_POS_ROT_INTERPOLATION_DURATION_ID().id(), DisplayAccessor.getDATA_POS_ROT_INTERPOLATION_DURATION_ID().serializer(), 2));
+        PolymerEntity.super.modifyRawTrackedData(data, player, initial);
+    }
+
+    @Override
+    public void startSeenByPlayer(ServerPlayer serverPlayer) {
+        super.startSeenByPlayer(serverPlayer);
+
+        serverPlayer.connection.send(new ClientboundUpdateMobEffectPacket(this.getId(), new MobEffectInstance(MobEffects.WATER_BREATHING, -1, 0, false, false), false));
+        serverPlayer.connection.send(new ClientboundUpdateMobEffectPacket(this.getId(), new MobEffectInstance(MobEffects.INVISIBILITY, -1, 0, false, false), false));
+    }
+
+    protected byte setFlag(byte b, int index, boolean value) {
+        if (value) {
+            return (byte) (b | 1 << index);
+        } else {
+            return (byte) (b & ~(1 << index));
+        }
     }
 
     @Override
@@ -228,6 +265,21 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
         }
     }
 
+    @Override
+    public boolean hurtServer(ServerLevel serverLevel, DamageSource damageSource, float f) {
+        return false;
+    }
+
+    @Override
+    protected void readAdditionalSaveData(ValueInput valueInput) {
+
+    }
+
+    @Override
+    protected void addAdditionalSaveData(ValueOutput valueOutput) {
+
+    }
+
     protected void handleInput(ServerPlayer player, Vec3 input) {
         this.steering = Mth.clamp(Mth.lerp(0.2f, steering, (float) input.x * 30f), -45, 45);
         this.vehicle.steer(steering * Mth.DEG_TO_RAD);
@@ -262,7 +314,7 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
 
     @Override
     public EntityType<?> getPolymerEntityType(PacketContext packetContext) {
-        return EntityType.ARMOR_STAND;
+        return EntityType.SLIME;
     }
 
     @NotNull
@@ -271,19 +323,15 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
         float x = p.getLastClientInput().left() ? 1 : p.getLastClientInput().right() ? -1 : 0;
         float z = p.getLastClientInput().forward() ? 1 : p.getLastClientInput().backward() ? -1 : 0;
         if (z <= 0.0F) {
-            z *= 0.5F;
+            z *= 0.65F;
         }
 
         return new Vec3(x, 0.0, z);
     }
 
-    @Override
-    public @NotNull HumanoidArm getMainArm() {
-        return HumanoidArm.LEFT;
-    }
-
     public void reset() {
         this.world.getPhysicsThread().enqueue(space -> {
+            vehicle.setPhysicsRotation(Quaternion.IDENTITY);
             vehicle.setPhysicsRotation(Quaternion.IDENTITY);
         });
     }

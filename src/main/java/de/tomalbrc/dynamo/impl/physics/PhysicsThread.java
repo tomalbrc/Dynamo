@@ -44,11 +44,9 @@ public final class PhysicsThread implements AutoCloseable {
 
         while (running.get()) {
             long now = System.nanoTime();
-            // Calculate the actual time passed since the last loop started
             float deltaTime = (now - lastTime) / 1_000_000_000f;
             lastTime = now;
 
-            // Process the queue
             Consumer<PhysicsSpace> r;
             while ((r = queue.poll()) != null) {
                 try {
@@ -59,14 +57,10 @@ public final class PhysicsThread implements AutoCloseable {
             }
 
             if (this.physicsSpace != null) {
-                // Use the actual measured deltaTime
-                // We cap it to avoid "the spiral of death" if the window is moved
-                // or the thread is suspended (e.g., 0.1s max)
                 float tpf = Math.min(deltaTime, 0.1f);
                 this.physicsSpace.update(tpf, 4);
             }
 
-            // Calculate how much time we spent doing work to determine sleep duration
             long workDoneTime = System.nanoTime();
             long elapsedWork = workDoneTime - now;
             long sleep = SLEEP_NANOS - elapsedWork;

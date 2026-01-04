@@ -22,7 +22,7 @@ public class ModConfig {
 
     public int chunkSize = 4;
     public boolean mesh = true;
-    public boolean exportMesh = true;
+    public boolean exportMesh = false;
 
     public static ModConfig getInstance() {
         if (instance == null) {
