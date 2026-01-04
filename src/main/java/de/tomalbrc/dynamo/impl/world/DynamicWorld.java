@@ -1,10 +1,10 @@
 package de.tomalbrc.dynamo.impl.world;
 
 import com.jme3.bullet.PhysicsSpace;
+import de.tomalbrc.dynamo.impl.MeshPos;
 import de.tomalbrc.dynamo.impl.physics.DynamicElement;
 import de.tomalbrc.dynamo.impl.physics.PhysicsThread;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.SectionPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
@@ -47,7 +47,7 @@ public class DynamicWorld {
     }
 
     public void updateBlock(Level level, BlockState blockState, BlockPos blockPos) {
-        this.chunkCache.markDirty(SectionPos.of(blockPos));
+        this.chunkCache.markDirty(MeshPos.of(blockPos));
     }
 
     public void unloadChunk(ServerLevel level, LevelChunk chunk) {

@@ -20,6 +20,7 @@ public class ModConfig {
 
     // entries
 
+    public int chunkSize = 16;
     public boolean mesh = true;
     public boolean exportMesh = true;
 

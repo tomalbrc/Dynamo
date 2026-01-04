@@ -8,6 +8,7 @@ import com.jme3.math.Vector3f;
 import com.jme3.util.BufferUtils;
 import de.tomalbrc.dynamo.Dynamo;
 import de.tomalbrc.dynamo.StlExporter;
+import de.tomalbrc.dynamo.impl.MeshPos;
 import de.tomalbrc.dynamo.impl.config.ModConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
@@ -25,7 +26,7 @@ import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 
 public class ChunkSectionCollisionShape extends CompoundCollisionShape {
-    private final SectionPos pos;
+    private final MeshPos pos;
 
     static final int CHUNK_SIZE = 16;
 
@@ -33,18 +34,9 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
     public MeshCollisionShape simpleShape;
     public boolean[][][] solid;
 
-    public ChunkSectionCollisionShape(Level level, SectionPos sectionPos) {
+    public ChunkSectionCollisionShape(Level level, MeshPos sectionPos) {
         this.pos = sectionPos;
         this.buildChunkCollisionShape(level);
-    }
-
-    public CompletableFuture<MeshCollisionShape> smoothFuture() {
-        this.smoothFuture = CompletableFuture.supplyAsync(() -> {
-            var m = ChunkMeshGenerator.generateSmoothedMesh(solid);
-            return getMeshCollisionShape(m);
-        }, Dynamo.COLLISION_GENERATOR_EXECUTOR);
-
-        return this.smoothFuture;
     }
 
     protected void buildMesh(boolean[][][] solid) {

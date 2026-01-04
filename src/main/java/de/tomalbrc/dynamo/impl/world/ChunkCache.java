@@ -1,28 +1,23 @@
 package de.tomalbrc.dynamo.impl.world;
 
-import com.jme3.bullet.PhysicsSpace;
 import com.jme3.bullet.collision.shapes.CollisionShape;
 import com.jme3.bullet.collision.shapes.EmptyShape;
 import com.jme3.bullet.objects.PhysicsBody;
 import com.jme3.bullet.objects.PhysicsRigidBody;
 import de.tomalbrc.dynamo.Dynamo;
+import de.tomalbrc.dynamo.impl.MeshPos;
 import de.tomalbrc.dynamo.impl.physics.ChunkSectionCollisionShape;
 import de.tomalbrc.dynamo.impl.physics.DynamicElement;
 import de.tomalbrc.dynamo.impl.physics.PhysicsThread;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.objects.ObjectArraySet;
-import it.unimi.dsi.fastutil.objects.Reference2ReferenceOpenHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.SectionPos;
-import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
-import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -32,7 +27,7 @@ public class ChunkCache {
     private final Map<Long, PhysicsBody> terrainObjects;
     private final Set<Long> terrainObjectsProcessing;
 
-    private final Set<SectionPos> dirty = new HashSet<>();
+    private final Set<MeshPos> dirty = new HashSet<>();
 
     public ChunkCache(PhysicsThread physicsThread) {
         this.terrainObjects = Collections.synchronizedMap(new HashMap<>());
@@ -40,7 +35,7 @@ public class ChunkCache {
         this.physicsThread = physicsThread;
     }
 
-    public void addSectionPhysics(Level level, LevelChunk chunk, SectionPos pos) {
+    public void addSectionPhysics(Level level, LevelChunk chunk, MeshPos pos) {
         if (!chunk.isInsideBuildHeight(pos.maxBlockY()) || !chunk.isInsideBuildHeight(pos.minBlockY()))
             return;
 
@@ -55,14 +50,14 @@ public class ChunkCache {
         }, Dynamo.COLLISION_GENERATOR_EXECUTOR);
     }
 
-    private static @NotNull Result generateBodyWithMesh(Level level, SectionPos pos) {
+    private static @NotNull Result generateBodyWithMesh(Level level, MeshPos blockPos) {
         CollisionShape shapeF;
-        ChunkSectionCollisionShape sectionCollisionShape = new ChunkSectionCollisionShape(level, pos);
+        ChunkSectionCollisionShape sectionCollisionShape = new ChunkSectionCollisionShape(level, blockPos);
         if (sectionCollisionShape.countChildren() == 0)
             shapeF = new EmptyShape(true);
         else shapeF = sectionCollisionShape;
 
-        Dynamo.LOGGER.info("Adding chunk section, tri-count: {} {}", sectionCollisionShape.countChildren(), pos.toShortString());
+        Dynamo.LOGGER.info("Adding chunk section, tri-count: {} {}", sectionCollisionShape.countChildren(), blockPos.toShortString());
 
         var body = new PhysicsRigidBody(shapeF, 0);
         body.setKinematic(true);
@@ -77,7 +72,7 @@ public class ChunkCache {
 
     public void tick(ServerLevel level, DynamicWorld world) {
         Set<BlockPos> positions = new ObjectArraySet<>();
-        Set<SectionPos> keep = new ObjectArraySet<>();
+        Set<MeshPos> keep = new ObjectArraySet<>();
 
         for (var e : world.getElements()) {
             var physicsBody = e.physicsBody();
@@ -91,9 +86,9 @@ public class ChunkCache {
                 positions.add(blockPos.relative(value, 16));
             }
 
-            SectionPos sectionPos = SectionPos.of(blockPos);
+            MeshPos meshPos = MeshPos.of(blockPos);
             var rad = 0;
-            var p = SectionPos.aroundChunk(sectionPos.chunk(), rad, sectionPos.y()-rad, sectionPos.y()+rad);
+            var p = MeshPos.around(meshPos, rad, meshPos.y()-rad, meshPos.y()+rad);
             p.forEach(x -> positions.add(x.center()));
             //keep.addAll(p.toList());
         }
@@ -111,7 +106,7 @@ public class ChunkCache {
 //        });
 
         for (BlockPos blockPos : positions) {
-            SectionPos sectionPos = SectionPos.of(blockPos);
+            MeshPos sectionPos = MeshPos.of(blockPos);
 
             if ((!this.terrainObjects.containsKey(sectionPos.asLong()) && !this.terrainObjectsProcessing.contains(sectionPos.asLong())) || this.dirty.contains(sectionPos)) {
                 var oldPhysicsBody = this.terrainObjects.get(SectionPos.of(blockPos).asLong());
@@ -137,7 +132,7 @@ public class ChunkCache {
 
     public void remove(LevelChunk chunk) {
         // TODO: keep cached longer?
-        var p = SectionPos.aroundChunk(chunk.getPos(), 0, 0, 32);
+        var p = MeshPos.around(MeshPos.of(chunk.getPos().getMiddleBlockPosition(0)), 0, 64, 64);
         p.forEach(x -> {
             var physicsBody = this.terrainObjects.remove(x.asLong());
             if (physicsBody != null) {
@@ -146,7 +141,7 @@ public class ChunkCache {
         });
     }
 
-    public void markDirty(SectionPos of) {
+    public void markDirty(MeshPos of) {
         dirty.add(of);
     }
 }

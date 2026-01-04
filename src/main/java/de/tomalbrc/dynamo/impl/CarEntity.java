@@ -15,6 +15,7 @@ import eu.pb4.polymer.virtualentity.api.elements.ItemDisplayElement;
 import eu.pb4.polymer.virtualentity.api.elements.VirtualElement;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.DustParticleOptions;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.protocol.game.ClientboundEntityPositionSyncPacket;
 import net.minecraft.network.protocol.game.ClientboundUpdateAttributesPacket;
 import net.minecraft.resources.Identifier;
@@ -54,6 +55,22 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
     DynamicWorld world;
     PhysicsVehicle vehicle;
     DynamicElement loader;
+
+    private static final float BOOST_STRENGTH = 2000.0f; // Adjust based on vehicle mass
+    private boolean isBoosting = false;
+
+    public void setBoosting(boolean active) {
+        this.isBoosting = active;
+    }
+
+    private void applyBoost() {
+        if (isBoosting) {
+            com.jme3.math.Vector3f forward = vehicle.getForwardVector(null);
+            com.jme3.math.Vector3f boostForce = forward.mult(BOOST_STRENGTH);
+            vehicle.applyCentralForce(boostForce);
+            vehicle.applyCentralForce(new com.jme3.math.Vector3f(0, -100f, 0));
+        }
+    }
 
     public CarEntity(EntityType<? extends @NotNull LivingEntity> entityType, Level level) {
         super(entityType, level);
@@ -169,26 +186,11 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
             this.vehicle.updateWheels();
 
             if (this.isVehicle() && this.getFirstPassenger() instanceof ServerPlayer player) {
-                var input = getInput(player);
-                this.vehicle.accelerate((float) input.z * 80f);
-
-                this.steering = Mth.clamp(Mth.lerp(0.2f, steering, (float) input.x * 30f), -45, 45);
-                this.vehicle.steer(steering * Mth.DEG_TO_RAD);
-
-                if (player.getLastClientInput().jump()) {
-                    this.vehicle.brake(100);
-                    for (int i = 0; i < this.vehicle.getNumWheels(); i++) {
-                        var wheel = this.vehicle.getWheel(i);
-                        var axle = wheel.getWheelWorldLocation(null);
-
-                        var state = level().getBlockState(BlockPos.containing(axle.x, axle.y - 0.1, axle.z));
-                        if (state.isSolid()) {
-                            ((ServerLevel) level()).sendParticles(new DustParticleOptions(0xFFFFFFFF, 1), axle.x, axle.y, axle.z, 10, 0.1f, 0.1f, 0.1f, 0.11);
-                        }
-                    }
-                }
+                var input = this.getInput(player);
+                this.handleInput(player, input);
             } else {
-                this.vehicle.brake(100);
+                this.vehicle.setEnableSleep(true);
+                this.vehicle.brake(1000);
             }
 
             for (int i = 0; i < this.vehicle.getNumWheels(); i++) {
@@ -216,6 +218,38 @@ public class CarEntity extends LivingEntity implements PolymerEntity {
                 }
             }
         }
+    }
+
+    protected void handleInput(ServerPlayer player, Vec3 input) {
+        this.steering = Mth.clamp(Mth.lerp(0.2f, steering, (float) input.x * 30f), -45, 45);
+        this.vehicle.steer(steering * Mth.DEG_TO_RAD);
+
+        if (player.getLastClientInput().jump()) {
+            this.vehicle.accelerate(0);
+            for (int i = 0; i < this.vehicle.getNumWheels(); i++) {
+                var wheel = this.vehicle.getWheel(i);
+                var axle = wheel.getWheelWorldLocation(null);
+
+                var state = level().getBlockState(BlockPos.containing(axle.x, axle.y - 1.25, axle.z));
+                if (state.isSolid()) {
+                    var rad = 0.25f;
+                    ((ServerLevel) level()).sendParticles(new DustParticleOptions(0xFFFFFFFF, 1), axle.x, axle.y, axle.z, 10, rad, rad, rad, 0.11);
+                }
+            }
+        } else {
+            this.vehicle.accelerate((float) input.z * 80f);
+        }
+
+        this.setBoosting(player.getLastClientInput().sprint());
+        if (isBoosting) {
+            var axle = this.vehicle.getPhysicsLocation(null);
+
+            var rad = 0.25f;
+            ((ServerLevel) level()).sendParticles(ParticleTypes.COPPER_FIRE_FLAME, axle.x, axle.y, axle.z, 10, rad, rad, rad, 0.11);
+
+        }
+
+        this.applyBoost();
     }
 
     @Override
