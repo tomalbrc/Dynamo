@@ -43,10 +43,10 @@ public class ChunkCache {
 
         CompletableFuture.runAsync(() -> {
             try {
-                Result result = generateBodyWithMesh(level, pos);
-                physicsThread.enqueue(space -> space.addCollisionObject(result.body()));
-                terrainObjects.put(key, result.body());
-                Dynamo.LOGGER.debug("Collision body stored for {}", pos.toShortString());
+                PhysicsRigidBody result = generateBodyWithMesh(level, pos);
+                physicsThread.enqueue(space -> space.addCollisionObject(result));
+                terrainObjects.put(key, result);
+                Dynamo.LOGGER.info("Collision body stored for {}", pos.toShortString());
             } catch (Throwable t) {
                 Dynamo.LOGGER.error("Failed to generate collision for {}: {}", pos.toShortString(), t.getMessage(), t);
             } finally {
@@ -55,7 +55,7 @@ public class ChunkCache {
         }, collisionExecutor);
     }
 
-    private static @NotNull Result generateBodyWithMesh(Level level, MeshPos blockPos) {
+    private static @NotNull PhysicsRigidBody generateBodyWithMesh(Level level, MeshPos blockPos) {
         final ChunkSectionCollisionShape sectionCollisionShape = new ChunkSectionCollisionShape(level, blockPos);
         final int childCount = sectionCollisionShape.countChildren();
         final CollisionShape shape = (childCount == 0) ? new EmptyShape(true) : sectionCollisionShape;
@@ -67,10 +67,8 @@ public class ChunkCache {
         body.setFriction(1.0f);
         body.setRestitution(0f);
 
-        return new Result(sectionCollisionShape, body);
+        return body;
     }
-
-    private record Result(ChunkSectionCollisionShape sectionCollisionShape, PhysicsRigidBody body) {}
 
     public void tick(ServerLevel level, DynamicWorld world) {
         Set<BlockPos> interestingPositions = new HashSet<>();
@@ -81,14 +79,8 @@ public class ChunkCache {
             var pos = transform.getTranslation();
             BlockPos centerBlock = BlockPos.containing(pos.x, pos.y, pos.z);
 
-            interestingPositions.add(centerBlock);
-
-            for (Direction dir : Direction.values()) {
-                interestingPositions.add(centerBlock.relative(dir, ModConfig.getInstance().chunkSize));
-            }
-
             MeshPos meshCenter = MeshPos.of(centerBlock);
-            var meshAround = MeshPos.inSphere(meshCenter, 2);
+            var meshAround = MeshPos.inSphere(meshCenter, 1.5);
             meshAround.forEach(m -> {
                 interestingPositions.add(m.center());
                 //keepMeshPositions.add(m);
