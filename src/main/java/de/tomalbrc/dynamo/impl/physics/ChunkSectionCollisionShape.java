@@ -85,7 +85,7 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
 
         var additionalRad = mesh? 4 : 0;
         var additionalRadHalf = mesh? additionalRad/2 : 0;
-        
+
         boolean hasSolid = this.solid != null;
         if (this.solid == null) {
             this.solid = new boolean[CHUNK_SIZE + additionalRad][CHUNK_SIZE + additionalRad][CHUNK_SIZE + additionalRad];
