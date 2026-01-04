@@ -11,7 +11,6 @@ import de.tomalbrc.dynamo.StlExporter;
 import de.tomalbrc.dynamo.impl.MeshPos;
 import de.tomalbrc.dynamo.impl.config.ModConfig;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.SectionPos;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
@@ -28,14 +27,14 @@ import java.util.concurrent.CompletableFuture;
 public class ChunkSectionCollisionShape extends CompoundCollisionShape {
     private final MeshPos pos;
 
-    static final int CHUNK_SIZE = 16;
+    static final int CHUNK_SIZE = ModConfig.getInstance().chunkSize;
 
     CompletableFuture<MeshCollisionShape> smoothFuture;
     public MeshCollisionShape simpleShape;
     public boolean[][][] solid;
 
-    public ChunkSectionCollisionShape(Level level, MeshPos sectionPos) {
-        this.pos = sectionPos;
+    public ChunkSectionCollisionShape(Level level, MeshPos meshPos) {
+        this.pos = meshPos;
         this.buildChunkCollisionShape(level);
     }
 
@@ -61,9 +60,9 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
 
         var floatBuffer = BufferUtils.createFloatBuffer(mesh.positions.size());
         for (int i = 0; i < mesh.positions.size(); i += 3) {
-            floatBuffer.put(mesh.positions.get(i) + pos.x() * 16);
-            floatBuffer.put(mesh.positions.get(i + 1) + pos.y() * 16);
-            floatBuffer.put(mesh.positions.get(i + 2) + pos.z() * 16);
+            floatBuffer.put(mesh.positions.get(i) +     pos.x() * CHUNK_SIZE);
+            floatBuffer.put(mesh.positions.get(i + 1) + pos.y() * CHUNK_SIZE);
+            floatBuffer.put(mesh.positions.get(i + 2) + pos.z() * CHUNK_SIZE);
 
             mesh.positions.set(i, floatBuffer.get(i));
             mesh.positions.set(i + 1, floatBuffer.get(i+1) + 1.f);
@@ -72,11 +71,6 @@ public class ChunkSectionCollisionShape extends CompoundCollisionShape {
         IntBuffer intBuffer = BufferUtils.createIntBuffer(mesh.indices.stream().mapToInt(Integer::intValue).toArray());
 
         return new MeshCollisionShape(false, new IndexedMesh(floatBuffer, intBuffer));
-    }
-
-    protected void replaceMesh(MeshCollisionShape oldShape, MeshCollisionShape newShape) {
-        this.removeChildShape(oldShape);
-        this.addChildShape(newShape);
     }
 
     public void buildChunkCollisionShape(Level level) {

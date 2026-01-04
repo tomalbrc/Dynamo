@@ -23,11 +23,11 @@ public record MeshPos(int x, int y, int z) {
     }
 
     public static int blockToMeshCoord(int i) {
-        return i >> 4;
+        return i>>3;
     }
 
     public static int meshToBlock(int i) {
-        return i << 4;
+        return i<<3;
     }
 
     public static int meshToBlock(int i, int offset) {
@@ -39,20 +39,19 @@ public record MeshPos(int x, int y, int z) {
     }
 
     public BlockPos center() {
-        int i = 8;
-        return this.origin().offset(8, 8, 8);
+        return this.origin().offset(SIZE/2, SIZE/2, SIZE/2);
     }
 
     public int minBlockX() {
-        return meshToBlock(x, 0);
+        return meshToBlock(x);
     }
 
     public int minBlockY() {
-        return meshToBlock(y, 0);
+        return meshToBlock(y);
     }
 
     public int minBlockZ() {
-        return meshToBlock(z, 0);
+        return meshToBlock(z);
     }
 
     public int maxBlockX() {
@@ -100,8 +99,12 @@ public record MeshPos(int x, int y, int z) {
         return l;
     }
 
-
     public String toShortString() {
         return this.x() + ", " + this.y() + ", " + this.z();
+    }
+
+    @Override
+    public int hashCode() {
+        return (this.y() + this.z() * 31) * 31 + this.x();
     }
 }

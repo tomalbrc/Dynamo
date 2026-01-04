@@ -17,7 +17,7 @@ public class ChunkMeshGenerator {
 
     public static MeshData generateMesh(boolean[][][] blocks) {
         MeshData data = new MeshData();
-        var len = 20-1;
+        var len = PADDED-1;
         for (int x = 2; x < len; x++) {
             for (int y = 2; y < len; y++) {
                 for (int z = 2; z < len; z++) {
