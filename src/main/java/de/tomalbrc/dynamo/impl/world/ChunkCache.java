@@ -1,39 +1,37 @@
 package de.tomalbrc.dynamo.impl.world;
 
-import com.jme3.bullet.collision.shapes.CollisionShape;
-import com.jme3.bullet.collision.shapes.EmptyShape;
-import com.jme3.bullet.objects.PhysicsBody;
-import com.jme3.bullet.objects.PhysicsRigidBody;
+import com.github.stephengold.joltjni.*;
+import com.github.stephengold.joltjni.enumerate.EActivation;
+import com.github.stephengold.joltjni.enumerate.EBodyType;
+import com.github.stephengold.joltjni.enumerate.EMotionType;
+import com.github.stephengold.joltjni.readonly.*;
 import de.tomalbrc.dynamo.Dynamo;
+import de.tomalbrc.dynamo.impl.mesh.ChunkMeshGenerator;
 import de.tomalbrc.dynamo.impl.mesh.MeshPos;
 import de.tomalbrc.dynamo.impl.config.ModConfig;
 import de.tomalbrc.dynamo.impl.physics.ChunkSectionCollisionShape;
 import de.tomalbrc.dynamo.impl.physics.DynamicElement;
-import de.tomalbrc.dynamo.impl.physics.PhysicsThread;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.chunk.LevelChunk;
 import org.jetbrains.annotations.NotNull;
 
+import java.nio.FloatBuffer;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
 
 public class ChunkCache {
-    private final PhysicsThread physicsThread;
-    private final Executor collisionExecutor;
-    private final ConcurrentHashMap<Long, PhysicsBody> terrainObjects = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, Integer> terrainObjects = new ConcurrentHashMap<>();
     private final Set<Long> terrainObjectsProcessing = ConcurrentHashMap.newKeySet();
     private final Set<MeshPos> dirty = ConcurrentHashMap.newKeySet();
 
-    public ChunkCache(PhysicsThread physicsThread) {
-        this.physicsThread = Objects.requireNonNull(physicsThread, "physicsThread");
-        this.collisionExecutor = Dynamo.COLLISION_GENERATOR_EXECUTOR;
+    public ChunkCache() {
+
     }
 
-    public void addSectionPhysics(Level level, LevelChunk chunk, MeshPos pos) {
+    public void addSectionPhysics(DynamicWorld dynamicWorld, LevelChunk chunk, MeshPos pos) {
         if (!chunk.isInsideBuildHeight(pos.maxBlockY()) || !chunk.isInsideBuildHeight(pos.minBlockY())) {
             return;
         }
@@ -42,29 +40,39 @@ public class ChunkCache {
 
         CompletableFuture.runAsync(() -> {
             try {
-                PhysicsRigidBody result = generateBodyWithMesh(level, pos);
-                physicsThread.enqueue(space -> space.addCollisionObject(result));
-                terrainObjects.put(key, result);
+                BodyInterface bi = dynamicWorld.getPhysicsSystem().getBodyInterface();
+                ConstBody result = generateBodyWithMesh(dynamicWorld, pos);
+
+
+                bi.addBody(result, EActivation.DontActivate);
+
+                terrainObjects.put(key, result.getId());
                 Dynamo.LOGGER.info("Collision body stored for {}", pos.toShortString());
             } catch (Throwable t) {
                 Dynamo.LOGGER.error("Failed to generate collision for {}: {}", pos.toShortString(), t.getMessage(), t);
             } finally {
                 terrainObjectsProcessing.remove(key);
             }
-        }, collisionExecutor);
+        }, Dynamo.COLLISION_GENERATOR_EXECUTOR);
     }
+    private static @NotNull Body generateBodyWithMesh(DynamicWorld dynamicWorld, MeshPos blockPos) {
+        final ChunkMeshGenerator.MeshData meshData = ChunkSectionCollisionShape.buildChunkCollisionShape(dynamicWorld.serverLevel, blockPos);
 
-    private static @NotNull PhysicsRigidBody generateBodyWithMesh(Level level, MeshPos blockPos) {
-        final ChunkSectionCollisionShape sectionCollisionShape = new ChunkSectionCollisionShape(level, blockPos);
-        final int childCount = sectionCollisionShape.countChildren();
-        final CollisionShape shape = (childCount == 0) ? new EmptyShape(true) : sectionCollisionShape;
+        var empty = meshData == null || meshData.positions == null || meshData.positions.limit() == 0;
 
-        Dynamo.LOGGER.info("Adding chunk section, tri-count: {} {}", childCount, blockPos.toShortString());
+        ShapeSettings meshShapeSettings = empty ? new EmptyShapeSettings() : new MeshShapeSettings(meshData.positions);
+        BodyCreationSettings bodySettings = new BodyCreationSettings()
+                .setMotionType(EMotionType.Static)
+                .setObjectLayer(DynamicWorld.objLayerNonMoving)
+                .setShape(meshShapeSettings.create().get())
+                .setPosition(new RVec3(blockPos.minBlockX(), blockPos.minBlockY(), blockPos.minBlockZ()));
 
-        PhysicsRigidBody body = new PhysicsRigidBody(shape, 0);
-        body.setKinematic(true);
-        body.setFriction(1.0f);
-        body.setRestitution(0f);
+        var bi =  dynamicWorld.getPhysicsSystem().getBodyInterface();
+
+        Body body = bi.createBody(bodySettings);
+        bi.addBody(body.getId(), EActivation.DontActivate);
+
+        meshShapeSettings.close();
 
         return body;
     }
@@ -72,20 +80,23 @@ public class ChunkCache {
     public void tick(ServerLevel level, DynamicWorld world) {
         Set<BlockPos> interestingPositions = new HashSet<>();
 
-        world.physicsSpace.getRigidBodyList().forEach(x -> {
-            if (x.isStatic())
-                return;
+        BodyIdVector idVector = new BodyIdVector();
+        world.physicsSystem.getActiveBodies(EBodyType.RigidBody, idVector);
 
-            var transform = x.getTransform(null);
-            var pos = transform.getTranslation();
-            BlockPos centerBlock = BlockPos.containing(pos.x, pos.y, pos.z);
+        for (int i = 0; i < idVector.capacity(); i++) {
+            var bid = idVector.get(i);
+            if (world.physicsSystem.getBodyInterface().getObjectLayer(bid) == DynamicWorld.objLayerMoving) {
+                var pos = world.physicsSystem.getBodyInterface().getPosition(bid);
 
-            MeshPos meshCenter = MeshPos.of(centerBlock);
-            var meshAround = MeshPos.inSphere(meshCenter, 1);
-            meshAround.forEach(m -> {
-                interestingPositions.add(m.center());
-            });
-        });
+                BlockPos centerBlock = BlockPos.containing(pos.x(), pos.y(), pos.z());
+
+                MeshPos meshCenter = MeshPos.of(centerBlock);
+                var meshAround = MeshPos.inSphere(meshCenter, 1);
+                meshAround.forEach(m -> {
+                    interestingPositions.add(m.center());
+                });
+            }
+        }
 
         for (BlockPos blockPos : interestingPositions) {
             MeshPos meshPos = MeshPos.of(blockPos);
@@ -97,7 +108,7 @@ public class ChunkCache {
 
             if ((!isPresent && !isProcessing) || isDirty) {
                 this.terrainObjectsProcessing.add(meshKey);
-                addSectionPhysics(level, level.getChunkAt(blockPos), meshPos);
+                addSectionPhysics(world, level.getChunkAt(blockPos), meshPos);
 
                 if (dirty.remove(meshPos)) {
                     wakeNearbyElements(world, blockPos);
@@ -107,23 +118,23 @@ public class ChunkCache {
     }
 
     private void wakeNearbyElements(DynamicWorld world, BlockPos blockPos) {
-        for (DynamicElement element : world.getElements()) {
-            var tr = element.physicsBody().getTransform(null).getTranslation();
-            if (blockPos.distToCenterSqr(tr.x, tr.y, tr.z) < 3f) {
-                element.physicsBody().activate(false);
-            }
-        }
+        var box = new AaBox(new Vec3(0,0,0), 0.5f);
+        world.physicsSystem.getBodyInterface().activateBodiesInAaBox(
+                box,
+                world.physicsSystem.getDefaultBroadPhaseLayerFilter(DynamicWorld.objLayerMoving),
+                world.physicsSystem.getDefaultLayerFilter(DynamicWorld.objLayerMoving)
+        );
     }
 
-    public void remove(LevelChunk chunk) {
+    public void remove(DynamicWorld world, LevelChunk chunk) {
         MeshPos center = MeshPos.of(chunk.getPos().getMiddleBlockPosition(0));
         int r = 16/ModConfig.getInstance().chunkSize;
         MeshPos.inBox(center, r, 128, r).forEach(m -> {
             long key = m.asLong();
             terrainObjectsProcessing.remove(key);
-            PhysicsBody removed = terrainObjects.remove(key);
+            var removed = terrainObjects.remove(key);
             if (removed != null) {
-                physicsThread.enqueue(space -> space.removeCollisionObject(removed));
+                world.physicsSystem.getBodyInterface().removeBody(removed);
             }
         });
     }

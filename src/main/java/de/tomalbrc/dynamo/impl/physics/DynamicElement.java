@@ -1,10 +1,10 @@
 package de.tomalbrc.dynamo.impl.physics;
 
-import com.jme3.bullet.objects.PhysicsBody;
+import com.github.stephengold.joltjni.Body;
 
 import java.util.function.Consumer;
 
-public record DynamicElement(PhysicsBody physicsBody, Consumer<DynamicElement> onUpdate, Consumer<DynamicElement> onRemove) {
+public record DynamicElement(int physicsBody, Consumer<DynamicElement> onUpdate, Consumer<DynamicElement> onRemove) {
     public void update() {
         onUpdate.accept(this);
     }

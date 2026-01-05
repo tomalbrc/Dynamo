@@ -1,22 +1,20 @@
 package de.tomalbrc.dynamo;
 
-import com.jme3.bullet.objects.PhysicsCharacter;
-import com.jme3.bullet.objects.PhysicsRigidBody;
-import com.jme3.math.Quaternion;
-import com.jme3.math.Transform;
-import com.jme3.math.Vector3f;
+import com.github.stephengold.joltjni.*;
+import com.github.stephengold.joltjni.enumerate.EActivation;
+import com.github.stephengold.joltjni.enumerate.EMotionType;
 import com.mojang.logging.LogUtils;
-import com.simsilica.mathd.Vec3d;
 import de.tomalbrc.dynamo.api.event.BlockEvents;
 import de.tomalbrc.dynamo.impl.Entities;
+import de.tomalbrc.dynamo.impl.command.ModCommands;
+import de.tomalbrc.dynamo.impl.mesh.Shaper;
 import de.tomalbrc.dynamo.impl.physics.DynamicElement;
 import de.tomalbrc.dynamo.impl.util.NativeLoader;
 import de.tomalbrc.dynamo.impl.util.WorldAttachment;
-import de.tomalbrc.dynamo.impl.command.ModCommands;
-import de.tomalbrc.dynamo.impl.mesh.Shaper;
 import de.tomalbrc.dynamo.impl.world.DynamicWorld;
 import de.tomalbrc.dynamo.impl.world.DynamicWorldContainer;
 import eu.pb4.polymer.virtualentity.api.ElementHolder;
+import eu.pb4.polymer.virtualentity.api.elements.BlockDisplayElement;
 import eu.pb4.polymer.virtualentity.api.elements.ItemDisplayElement;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
@@ -26,14 +24,13 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.Shapes;
 import org.joml.Quaternionf;
 import org.slf4j.Logger;
 
-import java.util.IdentityHashMap;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -47,13 +44,14 @@ public class Dynamo implements ModInitializer {
     @Override
     public void onInitialize() {
         NativeLoader.load();
+        initJolt();
 
         Entities.init();
         ModCommands.register();
         WorldAttachment.registerEventHandler();
 
         ServerWorldEvents.LOAD.register((minecraftServer, serverLevel) -> {
-            ((DynamicWorldContainer)serverLevel).setDynamicWorld(new DynamicWorld());
+            ((DynamicWorldContainer)serverLevel).setDynamicWorld(new DynamicWorld(serverLevel));
         });
         ServerWorldEvents.UNLOAD.register((minecraftServer, serverLevel) -> {
             var world = ((DynamicWorldContainer)serverLevel).getDynamicWorld();
@@ -68,11 +66,11 @@ public class Dynamo implements ModInitializer {
             var world = ((DynamicWorldContainer) level).getDynamicWorld();
             world.tick(level);
 
-            world.getPhysicsThread().enqueue(space -> {
-                for (Map.Entry<ServerPlayer, PhysicsCharacter> entry : characterMap.entrySet()) {
-                    entry.getValue().setPhysicsLocationDp(new Vec3d(entry.getKey().getX(), entry.getKey().getY(), entry.getKey().getZ()));
-                }
-            });
+//            world.getPhysicsThread().enqueue(space -> {
+//                for (Map.Entry<ServerPlayer, PhysicsCharacter> entry : characterMap.entrySet()) {
+//                    entry.getValue().setPhysicsLocationDp(new Vec3d(entry.getKey().getX(), entry.getKey().getY(), entry.getKey().getZ()));
+//                }
+//            });
         });
 
         BlockEvents.Block.BLOCK_UPDATE.register((level, pos, blockState, blockPos) -> {
@@ -84,40 +82,56 @@ public class Dynamo implements ModInitializer {
         });
     }
 
-    static Map<ServerPlayer, PhysicsCharacter> characterMap = new IdentityHashMap<>();
+    private static void initJolt() {
+        JoltPhysicsObject.startCleaner(); // to free Jolt-Physics objects automatically
+        Jolt.registerDefaultAllocator(); // tell Jolt Physics to use malloc/free
+
+        Jolt.installDefaultAssertCallback();
+        Jolt.installDefaultTraceCallback();
+
+        boolean success = Jolt.newFactory();
+        assert success;
+        Jolt.registerTypes();
+    }
 
     public static void testBlock(ServerPlayer player) {
         var level = player.level();
         var world = ((DynamicWorldContainer)level).getDynamicWorld();
 
-//        if (!characterMap.containsKey(player)) {
-//            PhysicsCharacter character = new PhysicsCharacter(new BoxCollisionShape(0.4f, 0.9f, 0.4f), 0.5f);
-//            world.getPhysicsThread().enqueue(space -> space.add(character));
-//            characterMap.put(player, character);
-//        }
+        var bodyPos = player.position().offsetRandom(player.getRandom(), 1.5f);
 
-        var body = new PhysicsRigidBody(Shaper.shape(Shapes.block()), 1.0f);
-        body.setFriction(2.f);
-        body.setRestitution(1.f);
-        var bodyPos = player.position().offsetRandom(player.getRandom(), 1.5f).toVector3f();
-        body.setPhysicsTransform(new Transform(new Vector3f(bodyPos.x, bodyPos.y, bodyPos.z), Quaternion.IDENTITY));
+        var shapeSettings = Shaper.shape(Shapes.block());
+        var bodySettings = new BodyCreationSettings()
+                .setShapeSettings(shapeSettings)
+                .setMotionType(EMotionType.Dynamic)
+                .setObjectLayer(DynamicWorld.objLayerMoving)
+                .setFriction(1.0f)
+                .setRestitution(0)
+                .setPosition(new RVec3(bodyPos.x, bodyPos.y, bodyPos.z));
 
-        world.getPhysicsThread().enqueue(space -> space.addCollisionObject(body));
+        bodySettings.getMassProperties().setMass(0.5f);
+
+        var bi = world.getPhysicsSystem().getBodyInterface();
+        var body = bi.createBody(bodySettings);
+        bi.addBody(body.getId(), EActivation.Activate);
 
         var holder = new ElementHolder();
 
-        ItemDisplayElement displayElement = new ItemDisplayElement(Items.STONE.getDefaultInstance());
+        var displayElement = new BlockDisplayElement(Blocks.STONE.defaultBlockState());
+        //displayElement.setTranslation(new Vector3f(.5f));
         displayElement.setTeleportDuration(2);
         displayElement.setInterpolationDuration(2);
-        world.addElement(new DynamicElement(body, e -> {
-            var pos = e.physicsBody().getTransform(null).getTranslation();
-            displayElement.setOverridePos(new Vec3(pos.x, pos.y+0.01, pos.z));
-            var rot = e.physicsBody().getTransform(null).getRotation();
+        world.addElement(new DynamicElement(body.getId(), e -> {
+            RVec3 pos = new RVec3();
+            Quat rot = new Quat();
+            bi.getPositionAndRotation(e.physicsBody(), pos, rot);
+
+            displayElement.setOverridePos(new Vec3(pos.x(), pos.y()+0.01, pos.z()));
             displayElement.setLeftRotation(new Quaternionf(rot.getX(), rot.getY(), rot.getZ(), rot.getW()));
             displayElement.startInterpolationIfDirty();
         }, e -> {
             holder.destroy();
-            world.getPhysicsThread().enqueue(space -> space.remove(body));
+            bi.removeBody(e.physicsBody());
         }));
 
         holder.addElement(displayElement);
@@ -128,34 +142,38 @@ public class Dynamo implements ModInitializer {
         var level = player.level();
         var world = ((DynamicWorldContainer)level).getDynamicWorld();
 
-//        if (!characterMap.containsKey(player)) {
-//            PhysicsCharacter character = new PhysicsCharacter(new BoxCollisionShape(0.4f, 0.9f, 0.4f), 0.5f);
-//            world.getPhysicsThread().enqueue(space -> space.add(character));
-//            characterMap.put(player, character);
-//        }
+        var bodyPos = player.position().offsetRandom(player.getRandom(), 1.5f);
 
-        var body = new PhysicsRigidBody(Shaper.shape(Shapes.create(AABB.ofSize(Vec3.ZERO, 1, 1, 1f/16f))), 0.1f);
-        body.setFriction(2.f);
-        body.setRestitution(0.f);
-        var bodyPos = player.position().offsetRandom(player.getRandom(), 1.5f).toVector3f();
-        body.setPhysicsTransform(new Transform(new Vector3f(bodyPos.x, bodyPos.y, bodyPos.z), Quaternion.IDENTITY));
+        var shapeSettings = Shaper.shape(Shapes.create(AABB.ofSize(Vec3.ZERO, 1, 1, 1f/16f)));
+        var bodySettings = new BodyCreationSettings()
+                .setShapeSettings(shapeSettings)
+                .setMotionType(EMotionType.Dynamic)
+                .setObjectLayer(DynamicWorld.objLayerMoving)
+                .setFriction(1.0f)
+                .setRestitution(0)
+                .setPosition(new RVec3(bodyPos.x, bodyPos.y, bodyPos.z));
 
-        world.getPhysicsThread().enqueue(space -> space.addCollisionObject(body));
+        var bi = world.getPhysicsSystem().getBodyInterface();
+        var body = bi.createBody(bodySettings);
+        bi.addBody(body.getId(), EActivation.Activate);
 
         var holder = new ElementHolder();
 
         ItemDisplayElement displayElement = new ItemDisplayElement(Items.DIAMOND.getDefaultInstance());
+        //displayElement.setTranslation(new Vector3f(-.5f));
         displayElement.setTeleportDuration(2);
         displayElement.setInterpolationDuration(2);
-        world.addElement(new DynamicElement(body, e -> {
-            var pos = e.physicsBody().getTransform(null).getTranslation();
-            displayElement.setOverridePos(new Vec3(pos.x, pos.y+0.01, pos.z));
-            var rot = e.physicsBody().getTransform(null).getRotation();
+        world.addElement(new DynamicElement(body.getId(), e -> {
+            RVec3 pos = new RVec3();
+            Quat rot = new Quat();
+            bi.getPositionAndRotation(e.physicsBody(), pos, rot);
+
+            displayElement.setOverridePos(new Vec3(pos.x(), pos.y()+0.01, pos.z()));
             displayElement.setLeftRotation(new Quaternionf(rot.getX(), rot.getY(), rot.getZ(), rot.getW()));
             displayElement.startInterpolationIfDirty();
         }, e -> {
             holder.destroy();
-            world.getPhysicsThread().enqueue(space -> space.remove(body));
+            bi.removeBody(e.physicsBody());
         }));
 
         holder.addElement(displayElement);

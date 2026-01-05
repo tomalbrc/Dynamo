@@ -1,10 +1,8 @@
 package de.tomalbrc.dynamo.impl.mesh;
 
-import com.jme3.bullet.collision.shapes.BoxCollisionShape;
-import com.jme3.bullet.collision.shapes.CollisionShape;
-import com.jme3.bullet.collision.shapes.CompoundCollisionShape;
-import com.jme3.bullet.collision.shapes.EmptyShape;
-import com.jme3.math.Vector3f;
+import com.github.stephengold.joltjni.BoxShapeSettings;
+import com.github.stephengold.joltjni.Quat;
+import com.github.stephengold.joltjni.StaticCompoundShapeSettings;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.Shapes;
@@ -15,11 +13,11 @@ public final class Shaper {
 
     private Shaper(){}
 
-    public static CollisionShape shape(VoxelShape shape) {
+    public static StaticCompoundShapeSettings shape(VoxelShape shape) {
+        var compound = new StaticCompoundShapeSettings();
         if (shape.isEmpty())
-            return new EmptyShape(false);
+            return compound;
 
-        var compound = new CompoundCollisionShape();
         shape.forAllBoxes((minX, minYBox, minZ, maxX, maxYBox, maxZ) -> {
             float worldMinX = (float) (minX);
             float worldMinY = (float) (minYBox);
@@ -38,8 +36,8 @@ public final class Shaper {
 
             if (hx <= 1e-6f || hy <= 1e-6f || hz <= 1e-6f) return;
 
-            BoxCollisionShape box = new BoxCollisionShape(new Vector3f(hx, hy, hz));
-            compound.addChildShape(box, new Vector3f(cx, cy, cz));
+            BoxShapeSettings box = new BoxShapeSettings(hx, hy, hz);
+            compound.addShape( new com.github.stephengold.joltjni.Vec3(cx, cy, cz), new Quat(), box);
         });
 
         return compound;

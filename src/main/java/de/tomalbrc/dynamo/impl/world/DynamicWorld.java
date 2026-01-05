@@ -1,9 +1,8 @@
 package de.tomalbrc.dynamo.impl.world;
 
-import com.jme3.bullet.PhysicsSpace;
+import com.github.stephengold.joltjni.*;
 import de.tomalbrc.dynamo.impl.mesh.MeshPos;
 import de.tomalbrc.dynamo.impl.physics.DynamicElement;
-import de.tomalbrc.dynamo.impl.physics.PhysicsThread;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
@@ -14,28 +13,45 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class DynamicWorld {
+    final public static int numObjLayers = 2;
+    /**
+     * object layer for moving objects
+     */
+    final public static int objLayerMoving = 0;
+    /**
+     * object layer for non-moving objects
+     */
+    final public static int objLayerNonMoving = 1;
+
     protected final ChunkCache chunkCache;
     protected final HashSet<DynamicElement> elements = new HashSet<>();
 
-    protected final PhysicsThread physicsThread;
-    protected final PhysicsSpace physicsSpace;
+    protected final int numWorkerThreads;
 
-    public DynamicWorld() {
-        this.physicsThread = new PhysicsThread();
-        this.physicsSpace = this.getPhysicsThread().getPhysicsSpace();
-        this.physicsSpace.setMaxSubSteps(8);
-        this.physicsSpace.setAccuracy(1f/120f);
+    protected final JobSystem jobSystem;
 
-        this.chunkCache = new ChunkCache(this.physicsThread);
+    protected final TempAllocator tempAllocator = new TempAllocatorMalloc();
+    protected final PhysicsSystem physicsSystem;
+
+    protected final ServerLevel serverLevel;
+
+    public DynamicWorld(ServerLevel serverLevel) {
+        this.serverLevel = serverLevel;
+
+        this.numWorkerThreads = Runtime.getRuntime().availableProcessors();
+        this.jobSystem = new JobSystemThreadPool(Jolt.cMaxPhysicsJobs, Jolt.cMaxPhysicsBarriers, numWorkerThreads);
+
+        this.physicsSystem = createSystem();
+
+        this.chunkCache = new ChunkCache();
     }
 
-    public PhysicsSpace getPhysicsSpace() {
-        return this.physicsSpace;
+    public PhysicsSystem getPhysicsSystem() {
+        return this.physicsSystem;
     }
 
     public void close() {
-        this.physicsThread.close();
-        this.physicsSpace.destroy();
+        this.physicsSystem.close();
     }
 
     public void addElement(DynamicElement element) {
@@ -51,18 +67,49 @@ public class DynamicWorld {
     }
 
     public void unloadChunk(ServerLevel level, LevelChunk chunk) {
-        this.chunkCache.remove(chunk);
+        this.chunkCache.remove(this, chunk);
     }
 
     public void tick(ServerLevel serverLevel) {
         boolean skip = serverLevel.getGameTime() % 2 != 0;
         if (!skip) {
-            this.getPhysicsThread().enqueue(space -> this.chunkCache.tick(serverLevel, this));
+
+            float timePerStep = 0.1f; // in seconds
+            int numCollisionSteps = 10;
+
+            this.physicsSystem.update(timePerStep, numCollisionSteps, this.tempAllocator, jobSystem);
+
+            this.chunkCache.tick(serverLevel, this);
             this.elements.forEach(DynamicElement::update);
         }
     }
 
-    public PhysicsThread getPhysicsThread() {
-        return physicsThread;
+    public JobSystem getJobSystem() {
+        return this.jobSystem;
+    }
+
+    private static PhysicsSystem createSystem() {
+        int numBpLayers = 1;
+
+        ObjectLayerPairFilterTable ovoFilter = new ObjectLayerPairFilterTable(numObjLayers);
+        ovoFilter.enableCollision(objLayerMoving, objLayerMoving);
+        ovoFilter.enableCollision(objLayerMoving, objLayerNonMoving);
+        ovoFilter.disableCollision(objLayerNonMoving, objLayerNonMoving);
+
+        BroadPhaseLayerInterfaceTable layerMap = new BroadPhaseLayerInterfaceTable(numObjLayers, numBpLayers);
+        layerMap.mapObjectToBroadPhaseLayer(objLayerMoving, 0);
+        layerMap.mapObjectToBroadPhaseLayer(objLayerNonMoving, 0);
+
+        ObjectVsBroadPhaseLayerFilter ovbFilter = new ObjectVsBroadPhaseLayerFilterTable(layerMap, numBpLayers, ovoFilter, numObjLayers);
+
+        PhysicsSystem system = new PhysicsSystem();
+
+        int maxBodies = 8_000;
+        int numBodyMutexes = 0; // 0 means "use the default number"
+        int maxBodyPairs = 65_536;
+        int maxContacts = 20_480;
+        system.init(maxBodies, numBodyMutexes, maxBodyPairs, maxContacts, layerMap, ovbFilter, ovoFilter);
+
+        return system;
     }
 }

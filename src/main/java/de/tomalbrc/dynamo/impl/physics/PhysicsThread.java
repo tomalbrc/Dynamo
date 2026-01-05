@@ -1,6 +1,6 @@
 package de.tomalbrc.dynamo.impl.physics;
 
-import com.jme3.bullet.PhysicsSpace;
+import com.github.stephengold.joltjni.PhysicsSystem;
 
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -9,8 +9,7 @@ import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 
 public final class PhysicsThread implements AutoCloseable {
-    private PhysicsSpace physicsSpace;
-    private final Queue<Consumer<PhysicsSpace>> queue = new ConcurrentLinkedQueue<>();
+    private final Queue<Consumer<PhysicsSystem>> queue = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean running = new AtomicBoolean(true);
     public final Thread thread;
 
@@ -19,20 +18,10 @@ public final class PhysicsThread implements AutoCloseable {
     public PhysicsThread() {
         this.thread = new Thread(this::runLoop, "Dynamo-PhysicsThread");
         this.thread.setDaemon(true);
-
-        this.enqueue(k -> this.physicsSpace = new PhysicsSpace(PhysicsSpace.BroadphaseType.DBVT));
         this.thread.start();
-
-        while (this.physicsSpace == null){
-            LockSupport.parkNanos(100_000);
-        }
     }
 
-    public PhysicsSpace getPhysicsSpace() {
-        return this.physicsSpace;
-    }
-
-    synchronized public void enqueue(Consumer<PhysicsSpace> task) {
+    synchronized public void enqueue(Consumer<PhysicsSystem> task) {
         if (!this.running.get())
             return;
 
@@ -46,20 +35,6 @@ public final class PhysicsThread implements AutoCloseable {
             long now = System.nanoTime();
             float deltaTime = (now - lastTime) / 1_000_000_000f;
             lastTime = now;
-
-            Consumer<PhysicsSpace> r;
-            while ((r = queue.poll()) != null) {
-                try {
-                    r.accept(physicsSpace);
-                } catch (Throwable t) {
-                    t.printStackTrace();
-                }
-            }
-
-            if (this.physicsSpace != null) {
-                float tpf = Math.min(deltaTime, 0.1f);
-                this.physicsSpace.update(tpf, 4);
-            }
 
             long workDoneTime = System.nanoTime();
             long elapsedWork = workDoneTime - now;

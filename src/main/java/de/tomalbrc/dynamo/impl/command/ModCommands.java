@@ -1,8 +1,8 @@
 package de.tomalbrc.dynamo.impl.command;
 
+import com.github.stephengold.joltjni.enumerate.EBodyType;
 import com.mojang.brigadier.CommandDispatcher;
 import de.tomalbrc.dynamo.Dynamo;
-import de.tomalbrc.dynamo.impl.CarEntity;
 import de.tomalbrc.dynamo.impl.Entities;
 import de.tomalbrc.dynamo.impl.world.DynamicWorldContainer;
 import me.lucko.fabric.api.permissions.v0.Permissions;
@@ -81,9 +81,9 @@ public class ModCommands {
                     var world = ((DynamicWorldContainer) level).getDynamicWorld();
 
                     ctx.getSource().sendSuccess(() -> {
-                        return Component.literal("Rigid bodies: " + world.getPhysicsSpace().getRigidBodyList().size())
+                        return Component.literal("All bodies: " + world.getPhysicsSystem().getNumBodies())
                                 .append("\n")
-                                .append(Component.literal("PCO: " + world.getPhysicsSpace().getPcoList().size()));
+                                .append(Component.literal("Rigid bodies: " + world.getPhysicsSystem().getNumActiveBodies(EBodyType.RigidBody)));
                     }, false);
 
                     return 0;
