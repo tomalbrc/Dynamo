@@ -2,7 +2,11 @@ package de.tomalbrc.dynamo.impl;
 
 import com.github.stephengold.joltjni.*;
 import com.github.stephengold.joltjni.enumerate.EActivation;
+import com.github.stephengold.joltjni.enumerate.EMotionQuality;
 import com.github.stephengold.joltjni.enumerate.EMotionType;
+import com.github.stephengold.joltjni.enumerate.ESpringMode;
+import de.tomalbrc.dynamo.Dynamo;
+import de.tomalbrc.dynamo.api.event.NoPositionSyncEntity;
 import de.tomalbrc.dynamo.impl.physics.DynamicElement;
 import de.tomalbrc.dynamo.impl.util.Util;
 import de.tomalbrc.dynamo.impl.world.DynamicWorld;
@@ -23,8 +27,10 @@ import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.*;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerEntity;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -50,7 +56,7 @@ import xyz.nucleoid.packettweaker.PacketContext;
 import java.util.ArrayList;
 import java.util.List;
 
-public class CarEntity extends Entity implements PolymerEntity {
+public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEntity {
     public static Identifier ID = Util.id("car");
 
     float halfWidth = 1.1f;
@@ -77,7 +83,6 @@ public class CarEntity extends Entity implements PolymerEntity {
         this.setInvisible(true);
 
         chassis = new ItemDisplayElement(Items.DIAMOND_BLOCK);
-        chassis.setTranslation(new Vector3f(0, -0.25f, 0));
         chassis.setTeleportDuration(2);
         chassis.setInterpolationDuration(2);
         chassis.setScale(new Vector3f(halfWidth, halfHeight, halfLength).mul(2.f));
@@ -141,8 +146,9 @@ public class CarEntity extends Entity implements PolymerEntity {
                     .setShapeSettings(chassisSettings)
                     .setPosition(new RVec3(getX(), getY(), getZ()))
                     .setObjectLayer(DynamicWorld.objLayerMoving)
-                    .setMotionType(EMotionType.Dynamic);
-
+                    .setMotionType(EMotionType.Dynamic)
+                    .setMotionQuality(EMotionQuality.LinearCast)
+                    .setFriction(0f);
 
             bodySettings.setMassPropertiesOverride(new MassProperties()); // Set mass props
             bodySettings.getMassPropertiesOverride().setMass(1500f);
@@ -155,9 +161,9 @@ public class CarEntity extends Entity implements PolymerEntity {
             float xOffset = halfWidth * 1.1f;
             float frontAxleZ = halfLength * 1.2f;
             float rearAxleZ = -halfLength * 1.01f;
-            float yWheelPos = 0;
-            float radius = 1.f;
-            float width = 0.5f; // Wheel width
+            float yWheelPos = -0.1f;
+            float radius = 0.8f;
+            float width = 0.3f;
 
             vehicleSettings.addWheels(createWheel(xOffset, yWheelPos, frontAxleZ, radius, width, true));
             vehicleSettings.addWheels(createWheel(-xOffset, yWheelPos, frontAxleZ, radius, width, true));
@@ -165,8 +171,8 @@ public class CarEntity extends Entity implements PolymerEntity {
             vehicleSettings.addWheels(createWheel(-xOffset, yWheelPos, rearAxleZ, radius, width, false));
 
             WheeledVehicleControllerSettings controllerSettings = new WheeledVehicleControllerSettings();
-            //controllerSettings.getEngine().setMaxTorque(500);
             controllerSettings.getEngine().setMinRpm(2000);
+            controllerSettings.getEngine().setMaxTorque(2000);
             controllerSettings.setNumDifferentials(1);
             vehicleSettings.setController(controllerSettings);
 
@@ -176,6 +182,7 @@ public class CarEntity extends Entity implements PolymerEntity {
 
             var tester = new VehicleCollisionTesterRay(DynamicWorld.objLayerMoving);
             this.vehicle = new VehicleConstraint(chassisBody, vehicleSettings);
+            vehicle.setMaxPitchRollAngle(Mth.DEG_TO_RAD*60);
             this.vehicle.setVehicleCollisionTester(tester);
             this.vehicleId = chassisBody.getId();
 
@@ -202,10 +209,11 @@ public class CarEntity extends Entity implements PolymerEntity {
         w.setWidth(width);
 
         w.setSuspensionMinLength(0.05f);
-        w.setSuspensionMaxLength(0.35f);
+        w.setSuspensionMaxLength(0.6f);
 
-        w.getSuspensionSpring().setFrequency(6.0f);
-        w.getSuspensionSpring().setDamping(0.8f);
+        w.getSuspensionSpring().setMode(ESpringMode.StiffnessAndDamping);
+        w.getSuspensionSpring().setStiffness(0f);
+        w.getSuspensionSpring().setDamping(.1f);
 
         if (!front) {
             w.setMaxSteerAngle(0f);
@@ -213,8 +221,8 @@ public class CarEntity extends Entity implements PolymerEntity {
             w.setMaxSteerAngle(Mth.DEG_TO_RAD * 40);
         }
 
-        //w.setMaxBrakeTorque(2500.0f);
-        //w.setMaxHandBrakeTorque(4000.0f);
+        w.setMaxBrakeTorque(2500.0f);
+        w.setMaxHandBrakeTorque(4000.0f);
 
         return w;
     }
@@ -235,7 +243,7 @@ public class CarEntity extends Entity implements PolymerEntity {
     }
 
     @Override
-    public void startSeenByPlayer(ServerPlayer serverPlayer) {
+    public void startSeenByPlayer(@NotNull ServerPlayer serverPlayer) {
         super.startSeenByPlayer(serverPlayer);
 
         serverPlayer.connection.send(new ClientboundUpdateMobEffectPacket(this.getId(), new MobEffectInstance(MobEffects.WATER_BREATHING, -1, 0, false, false), false));
@@ -251,26 +259,27 @@ public class CarEntity extends Entity implements PolymerEntity {
     }
 
     @Override
-    public InteractionResult interactAt(Player player, Vec3 vec3, InteractionHand interactionHand) {
+    public @NotNull InteractionResult interactAt(Player player, @NotNull Vec3 vec3, @NotNull InteractionHand interactionHand) {
         player.startRiding(this);
         return super.interact(player, interactionHand);
     }
-
-    float steering = 0;
 
     @Override
     public void baseTick() {
         super.baseTick();
 
+        boolean skip = this.tickCount % 2 == 1;
         if (this.vehicle != null) {
-            BodyInterface bi = world.getPhysicsSystem().getBodyInterface();
 
             if (this.isVehicle() && this.getFirstPassenger() instanceof ServerPlayer player) {
                 this.handleInput(player, player.getLastClientInput());
             } else {
                 WheeledVehicleController controller = (WheeledVehicleController) this.vehicle.getController();
-                controller.setDriverInput(0, 0, 1.0f, 0);
+                controller.setDriverInput(0, 0, 0, 0);
             }
+
+            if (skip)
+                return;
 
             for (int i = 0; i < 4; i++) {
                 RVec3 wheelPos = new RVec3();
@@ -283,43 +292,59 @@ public class CarEntity extends Entity implements PolymerEntity {
                 element.startInterpolationIfDirty();
             }
 
+            BodyInterface bi = world.getPhysicsSystem().getBodyInterface();
+
             var chassisBody = this.vehicle.getVehicleBody().getId();
             RVec3 carPos = new RVec3();
+            carPos.loadZero();
             Quat carRot = new Quat();
+            carRot.loadIdentity();
             bi.getPositionAndRotation(chassisBody, carPos, carRot);
 
-            chassis.setOverridePos(new Vec3(carPos.x(), carPos.y(), carPos.z()));
+            chassis.setOverridePos(new Vec3(carPos.xx(), carPos.yy(), carPos.zz()));
             chassis.setLeftRotation(new Quaternionf(carRot.getX(), carRot.getY(), carRot.getZ(), carRot.getW()));
             chassis.startInterpolationIfDirty();
 
-            this.setPos(carPos.x(), carPos.y(), carPos.z());
+            this.setPos(carPos.xx(), carPos.yy(), carPos.zz());
 
-            List<Packet<? super @NotNull ClientGamePacketListener>> packets = new ArrayList<>();
-            var pos1 = (new ClientboundEntityPositionSyncPacket(this.getId(), new PositionMoveRotation(position(), position(), 0f, 0f), false));
-            packets.add(pos1);
-            for (VirtualElement element : this.holder.getElements()) {
-                if (element instanceof GenericEntityElement entityElement) {
-                    var id = entityElement.getEntityId();
-                    packets.add(new ClientboundEntityPositionSyncPacket(id, new PositionMoveRotation(element.getCurrentPos(), element.getCurrentPos(), 0f, 0f), false));
-                }
-            }
-            this.holder.sendPacket(new ClientboundBundlePacket(packets));
+            updatePos();
         }
+    }
+
+    public void updatePos() {
+        List<Packet<? super @NotNull ClientGamePacketListener>> packets = new ArrayList<>();
+        var pos1 = (new ClientboundEntityPositionSyncPacket(this.getId(), new PositionMoveRotation(chassis.getCurrentPos(), chassis.getCurrentPos(), 0f, 0f), false));
+        var pos2 = (new ClientboundEntityPositionSyncPacket(this.chassis.getEntityId(), new PositionMoveRotation(chassis.getCurrentPos(), chassis.getCurrentPos(), 0f, 0f), false));
+        packets.add(pos1);
+        packets.add(pos2);
+
+        for (VirtualElement element : this.holder.getElements()) {
+            if (element instanceof GenericEntityElement entityElement) {
+                var id = entityElement.getEntityId();
+                packets.add(new ClientboundEntityPositionSyncPacket(id, new PositionMoveRotation(element.getCurrentPos(), element.getCurrentPos(), 0f, 0f), false));
+            }
+        }
+        this.holder.sendPacket(new ClientboundBundlePacket(packets));
     }
 
     public void handleInput(ServerPlayer player, Input input) {
         WheeledVehicleController controller = (WheeledVehicleController) this.vehicle.getController();
-
         float forward = 0;
         float steering = 0;
-        float brake = 0;
         float handBrake = 0;
 
         if (input.forward()) forward = 1.0f;
-        if (input.backward()) forward = -1.0f;
+        if (input.backward()) {
+            forward = -1.0f;
+        }
+
         if (input.left()) steering = -1.0f;
         if (input.right()) steering = 1.0f;
         if (input.jump()) handBrake = 1.0f;
+
+        float brake = (forward == 0f) ? 1.0f : 0.0f;
+
+        controller.setDriverInput(forward, steering, brake, handBrake);
 
         if (input.jump()) {
             for (int i = 0; i < 4; i++) {
@@ -335,8 +360,6 @@ public class CarEntity extends Entity implements PolymerEntity {
             }
         }
 
-        if (forward != 0) controller.setDriverInput(forward, steering, forward == 0 ? 1.0f : brake, handBrake);
-
         this.setBoosting(player.getLastClientInput().sprint());
         if (isBoosting) {
             var axle = world.getPhysicsSystem().getBodyInterface().getPosition(this.vehicleId);
@@ -349,17 +372,17 @@ public class CarEntity extends Entity implements PolymerEntity {
     }
 
     @Override
-    public boolean hurtServer(ServerLevel serverLevel, DamageSource damageSource, float f) {
-        return false;
+    public boolean hurtServer(@NotNull ServerLevel serverLevel, @NotNull DamageSource damageSource, float f) {
+        return damageSource.is(DamageTypeTags.IS_PLAYER_ATTACK) || !damageSource.is(DamageTypeTags.IS_FALL);
     }
 
     @Override
-    protected void readAdditionalSaveData(ValueInput valueInput) {
+    protected void readAdditionalSaveData(@NotNull ValueInput valueInput) {
 
     }
 
     @Override
-    protected void addAdditionalSaveData(ValueOutput valueOutput) {
+    protected void addAdditionalSaveData(@NotNull ValueOutput valueOutput) {
 
     }
 
@@ -369,7 +392,10 @@ public class CarEntity extends Entity implements PolymerEntity {
     }
 
     public void reset() {
-        getPhysicsWorld().getPhysicsSystem().getBodyInterface().setPositionAndRotation(vehicleId, RVec3.sZero(), Quat.sIdentity(), EActivation.Activate);
+        var pos = getPhysicsWorld().getPhysicsSystem().getBodyInterface().getPosition(vehicleId);
+        pos.addInPlace(0,1,0);
+
+        getPhysicsWorld().getPhysicsSystem().getBodyInterface().setPosition(vehicleId, pos, EActivation.Activate);
         getPhysicsWorld().getPhysicsSystem().getBodyInterface().setAngularVelocity(vehicleId, com.github.stephengold.joltjni.Vec3.sZero());
         getPhysicsWorld().getPhysicsSystem().getBodyInterface().setLinearVelocity(vehicleId, com.github.stephengold.joltjni.Vec3.sZero());
     }

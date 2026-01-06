@@ -36,7 +36,8 @@ import java.util.concurrent.Executors;
 
 public class Dynamo implements ModInitializer {
     public static final Logger LOGGER = LogUtils.getLogger();
-    public static final ExecutorService COLLISION_GENERATOR_EXECUTOR = Executors.newWorkStealingPool(2);
+    public static final ExecutorService COLLISION_GEN = Executors.newVirtualThreadPerTaskExecutor();
+    public static final ExecutorService PHYSICS = Executors.newVirtualThreadPerTaskExecutor();
     public static final String MODID = "dynamo";
 
     public static MinecraftServer SERVER;
@@ -60,7 +61,10 @@ public class Dynamo implements ModInitializer {
         });
 
         ServerLifecycleEvents.SERVER_STARTING.register(minecraftServer -> SERVER = minecraftServer);
-        ServerLifecycleEvents.SERVER_STOPPED.register(minecraftServer -> COLLISION_GENERATOR_EXECUTOR.shutdownNow());
+        ServerLifecycleEvents.SERVER_STOPPED.register(minecraftServer -> {
+            COLLISION_GEN.shutdownNow();
+            PHYSICS.shutdownNow();
+        });
 
         ServerTickEvents.START_WORLD_TICK.register(level -> {
             var world = ((DynamicWorldContainer) level).getDynamicWorld();
@@ -106,10 +110,11 @@ public class Dynamo implements ModInitializer {
                 .setMotionType(EMotionType.Dynamic)
                 .setObjectLayer(DynamicWorld.objLayerMoving)
                 .setFriction(1.0f)
-                .setRestitution(0)
+                .setRestitution(0.1f)
                 .setPosition(new RVec3(bodyPos.x, bodyPos.y, bodyPos.z));
 
-        bodySettings.getMassProperties().setMass(0.5f);
+        bodySettings.setMassPropertiesOverride(new MassProperties());
+        bodySettings.getMassPropertiesOverride().setMass(0.01f);
 
         var bi = world.getPhysicsSystem().getBodyInterface();
         var body = bi.createBody(bodySettings);
@@ -125,7 +130,6 @@ public class Dynamo implements ModInitializer {
             RVec3 pos = new RVec3();
             Quat rot = new Quat();
             bi.getPositionAndRotation(e.physicsBody(), pos, rot);
-
             displayElement.setOverridePos(new Vec3(pos.x(), pos.y()+0.01, pos.z()));
             displayElement.setLeftRotation(new Quaternionf(rot.getX(), rot.getY(), rot.getZ(), rot.getW()));
             displayElement.startInterpolationIfDirty();
@@ -150,8 +154,11 @@ public class Dynamo implements ModInitializer {
                 .setMotionType(EMotionType.Dynamic)
                 .setObjectLayer(DynamicWorld.objLayerMoving)
                 .setFriction(1.0f)
-                .setRestitution(0)
+                .setRestitution(0.4f)
                 .setPosition(new RVec3(bodyPos.x, bodyPos.y, bodyPos.z));
+
+        bodySettings.setMassPropertiesOverride(new MassProperties());
+        bodySettings.getMassPropertiesOverride().setMass(0.001f);
 
         var bi = world.getPhysicsSystem().getBodyInterface();
         var body = bi.createBody(bodySettings);

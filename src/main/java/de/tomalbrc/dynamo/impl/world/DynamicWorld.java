@@ -1,6 +1,7 @@
 package de.tomalbrc.dynamo.impl.world;
 
 import com.github.stephengold.joltjni.*;
+import de.tomalbrc.dynamo.Dynamo;
 import de.tomalbrc.dynamo.impl.mesh.MeshPos;
 import de.tomalbrc.dynamo.impl.physics.DynamicElement;
 import net.minecraft.core.BlockPos;
@@ -72,16 +73,18 @@ public class DynamicWorld {
 
     public void tick(ServerLevel serverLevel) {
         boolean skip = serverLevel.getGameTime() % 2 != 0;
-        if (!skip) {
+        if (true || !skip) {
 
-            float timePerStep = 0.1f; // in seconds
-            int numCollisionSteps = 10;
+            Dynamo.PHYSICS.execute(() -> {
+                this.chunkCache.tick(serverLevel, this);
 
-            this.physicsSystem.update(timePerStep, numCollisionSteps, this.tempAllocator, jobSystem);
-
-            this.chunkCache.tick(serverLevel, this);
-            this.elements.forEach(DynamicElement::update);
+                float timePerStep = 0.1f; // in seconds
+                int numCollisionSteps = 5;
+                this.physicsSystem.update(timePerStep, numCollisionSteps, this.tempAllocator, jobSystem);
+            });
         }
+
+        this.elements.forEach(DynamicElement::update);
     }
 
     public JobSystem getJobSystem() {

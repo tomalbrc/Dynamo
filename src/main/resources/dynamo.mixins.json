@@ -6,6 +6,7 @@
   "mixins": [
     "BlockStateBaseMixin",
     "LevelMixin",
+    "ServerEntityMixin",
     "ServerGamePacketListenerImplMixin"
   ],
   "client": [
