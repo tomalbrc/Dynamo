@@ -12,7 +12,8 @@ public final class StlExporter {
             String solidName,
             FloatBuffer vertices,
             IntBuffer indices,
-            int indicesCnt
+            int indicesCnt,
+            float offsetX, float offsetY, float offsetZ
     ) throws IOException {
 
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(filename))) {
@@ -44,10 +45,22 @@ public final class StlExporter {
                 float ny = uz * vx - ux * vz;
                 float nz = ux * vy - uy * vx;
 
-                float len = (float)Math.sqrt(nx*nx + ny*ny + nz*nz);
+                float len = (float) Math.sqrt(nx * nx + ny * ny + nz * nz);
                 if (len != 0f) {
-                    nx /= len; ny /= len; nz /= len;
+                    nx /= len;
+                    ny /= len;
+                    nz /= len;
                 }
+
+                x0 += offsetX;
+                y0 += offsetY;
+                z0 += offsetZ;
+                x1 += offsetX;
+                y1 += offsetY;
+                z1 += offsetZ;
+                x2 += offsetX;
+                y2 += offsetY;
+                z2 += offsetZ;
 
                 writer.write("  facet normal " + nx + " " + ny + " " + nz);
                 writer.newLine();
@@ -63,22 +76,22 @@ public final class StlExporter {
                 writer.newLine();
                 writer.write("  endfacet");
                 writer.newLine();
-
-                // backside for double sided tris
-                writer.write("  facet normal " + (-nx) + " " + (-ny) + " " + (-nz));
-                writer.newLine();
-                writer.write("    outer loop");
-                writer.newLine();
-                writer.write("      vertex " + x0 + " " + y0 + " " + z0);
-                writer.newLine();
-                writer.write("      vertex " + x2 + " " + y2 + " " + z2);
-                writer.newLine();
-                writer.write("      vertex " + x1 + " " + y1 + " " + z1);
-                writer.newLine();
-                writer.write("    endloop");
-                writer.newLine();
-                writer.write("  endfacet");
-                writer.newLine();
+//
+//                // backside for double sided tris
+//                writer.write("  facet normal " + (-nx) + " " + (-ny) + " " + (-nz));
+//                writer.newLine();
+//                writer.write("    outer loop");
+//                writer.newLine();
+//                writer.write("      vertex " + x0 + " " + y0 + " " + z0);
+//                writer.newLine();
+//                writer.write("      vertex " + x2 + " " + y2 + " " + z2);
+//                writer.newLine();
+//                writer.write("      vertex " + x1 + " " + y1 + " " + z1);
+//                writer.newLine();
+//                writer.write("    endloop");
+//                writer.newLine();
+//                writer.write("  endfacet");
+//                writer.newLine();
             }
 
             writer.write("endsolid " + solidName);

@@ -15,17 +15,33 @@ import java.util.Locale;
 public class ChunkSectionCollisionShape {
     static final int CHUNK_SIZE = ModConfig.getInstance().chunkSize;
 
-    public static ChunkMeshGenerator.MeshData buildMesh(MeshPos pos, boolean[][][] solid) {
+    public static ChunkMeshGenerator.MeshData buildSmoothMesh(MeshPos pos, boolean[][][] solid) {
         var mesh = ChunkMeshGenerator.generateSmoothedMesh(solid, 0,0,0);
         if (mesh.positions.capacity() == 0)
             return null;
 
         if (ModConfig.getInstance().exportMesh) {
             try {
-                StlExporter.writeAsciiStl(String.format(Locale.US, "/tmp/section-%d-%d-%d.stl", pos.getX(), pos.getY(), pos.getZ()), "section", mesh.positions, mesh.indices, mesh.indices.capacity());
+                StlExporter.writeAsciiStl(String.format(Locale.US, "/tmp/section-%d-%d-%d.stl", pos.getX(), pos.getY(), pos.getZ()), "section", mesh.positions, mesh.indices, mesh.indices.capacity(), pos.minBlockX(), pos.minBlockY(), pos.minBlockZ());
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
+        }
+
+        return mesh;
+    }
+
+    public static ChunkMeshGenerator.MeshData buildBlockMesh(MeshPos pos, boolean[][][] solid) {
+        var mesh = ChunkMeshGenerator.generateMesh(solid, 0,0,0);
+        if (mesh.positions.capacity() == 0)
+            return null;
+
+        if (ModConfig.getInstance().exportMesh) {
+//            try {
+//                //StlExporter.writeAsciiStl(String.format(Locale.US, "/tmp/section-%d-%d-%d.stl", pos.getX(), pos.getY(), pos.getZ()), "section", mesh.positions, mesh.indices, mesh.indices.capacity(), pos.minBlockX(), pos.minBlockY(), pos.minBlockZ());
+//            } catch (IOException e) {
+//                throw new RuntimeException(e);
+//            }
         }
 
         return mesh;
@@ -41,8 +57,8 @@ public class ChunkSectionCollisionShape {
 
         boolean mesh = ModConfig.getInstance().mesh;
 
-        var additionalRad = mesh? 4 : 0;
-        var additionalRadHalf = mesh? additionalRad/2 : 0;
+        var additionalRad = 4;
+        var additionalRadHalf = additionalRad/2;
 
         boolean hasSolid = false;
         var solid = new boolean[CHUNK_SIZE + additionalRad][CHUNK_SIZE + additionalRad][CHUNK_SIZE + additionalRad];
@@ -63,9 +79,9 @@ public class ChunkSectionCollisionShape {
             return null;
 
         if (mesh) {
-            return buildMesh(pos, solid);
+            return buildSmoothMesh(pos, solid);
+        } else {
+            return buildBlockMesh(pos, solid);
         }
-
-        return null;
     }
 }

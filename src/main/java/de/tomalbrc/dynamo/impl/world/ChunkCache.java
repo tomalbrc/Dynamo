@@ -20,25 +20,26 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ChunkCache {
-    private final ConcurrentHashMap<Long, Integer> terrainObjects = new ConcurrentHashMap<>();
-    private final Set<Long> terrainObjectsProcessing = ConcurrentHashMap.newKeySet();
+    private final Map<Long, Integer> terrainObjects = new ConcurrentHashMap<>();
+    private final Map<Long, CompletableFuture<Void>> terrainObjectsProcessing = new ConcurrentHashMap<>();
     private final Set<MeshPos> dirty = ConcurrentHashMap.newKeySet();
 
     public ChunkCache() {
 
     }
 
-    public void addSectionPhysics(DynamicWorld dynamicWorld, LevelChunk chunk, MeshPos pos, boolean now, Runnable onFinish) {
+    public CompletableFuture<Void> addSectionPhysics(DynamicWorld dynamicWorld, LevelChunk chunk, MeshPos pos, boolean now, Runnable onFinish) {
         if (!chunk.isInsideBuildHeight(pos.maxBlockY()) || !chunk.isInsideBuildHeight(pos.minBlockY())) {
-            return;
+            return null;
         }
 
         final long key = pos.asLong();
 
         if (now) {
             doGen(dynamicWorld, pos, onFinish, key);
+            return CompletableFuture.completedFuture(null);
         } else {
-            CompletableFuture.runAsync(() -> {
+            return CompletableFuture.runAsync(() -> {
                 doGen(dynamicWorld, pos, onFinish, key);
             }, Dynamo.COLLISION_GEN);
         }
@@ -81,8 +82,6 @@ public class ChunkCache {
         Body body = bi.createBody(bodySettings);
         bi.addBody(body.getId(), EActivation.DontActivate);
 
-        meshShapeSettings.close();
-
         return body;
     }
 
@@ -102,11 +101,11 @@ public class ChunkCache {
                 mainPositions.add(centerBlock);
 
                 MeshPos meshCenter = MeshPos.of(centerBlock);
-                MeshPos.inSphere(meshCenter, 2).forEach(m -> {
+                MeshPos.inSphere(meshCenter, 4).forEach(m -> {
                     interestingPositions.add(m.center());
                 });
 
-                MeshPos.inSphere(meshCenter, 1).forEach(m -> {
+                MeshPos.inSphere(meshCenter, 3).forEach(m -> {
                     mainPositions.add(m.center());
                 });
             }
@@ -117,18 +116,35 @@ public class ChunkCache {
             long meshKey = meshPos.asLong();
 
             boolean isPresent = this.terrainObjects.containsKey(meshKey);
-            boolean isProcessing = this.terrainObjectsProcessing.contains(meshKey);
-            boolean isDirty = this.dirty.contains(meshPos);
+            boolean isDirty = this.dirty.remove(meshPos);
+            if (isPresent && !isDirty)
+                continue;
 
-            if ((!isPresent && !isProcessing) || isDirty) {
-                this.terrainObjectsProcessing.add(meshKey);
-                var d = this.dirty.remove(meshPos);
-                this.addSectionPhysics(world, level.getChunkAt(blockPos), meshPos, mainPositions.contains(blockPos), () -> {
-                    if (d) {
-                        this.wakeNearbyElements(world, blockPos);
-                    }
-                });
+            boolean isProcessing = this.terrainObjectsProcessing.get(meshKey) != null;
+
+            if (isProcessing && isDirty) {
+                this.terrainObjectsProcessing.get(meshKey).cancel(true);
+                this.terrainObjectsProcessing.remove(meshKey);
+                isProcessing = false;
             }
+
+            if (isProcessing && mainPositions.contains(blockPos)) {
+                this.terrainObjectsProcessing.get(meshKey).join();
+                this.terrainObjectsProcessing.remove(meshKey);
+                continue;
+            }
+
+            if (isProcessing)
+                continue;
+
+            var future = this.addSectionPhysics(world, level.getChunkAt(blockPos), meshPos, !isDirty && mainPositions.contains(blockPos), () -> {
+                if (isDirty) {
+                    this.wakeNearbyElements(world, blockPos);
+                }
+            });
+
+            var old = this.terrainObjectsProcessing.put(meshKey, Objects.requireNonNullElseGet(future, () -> CompletableFuture.completedFuture(null)));
+            assert old == null;
         }
     }
 
