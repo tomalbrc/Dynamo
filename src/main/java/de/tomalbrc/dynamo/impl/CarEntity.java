@@ -2,6 +2,7 @@ package de.tomalbrc.dynamo.impl;
 
 import com.github.stephengold.joltjni.*;
 import com.github.stephengold.joltjni.enumerate.*;
+import de.tomalbrc.dynamo.Dynamo;
 import de.tomalbrc.dynamo.api.event.NoPositionSyncEntity;
 import de.tomalbrc.dynamo.impl.physics.DynamicElement;
 import de.tomalbrc.dynamo.impl.util.Util;
@@ -17,6 +18,7 @@ import eu.pb4.polymer.virtualentity.api.elements.VirtualElement;
 import eu.pb4.polymer.virtualentity.api.tracker.EntityTrackedData;
 import eu.pb4.polymer.virtualentity.mixin.accessors.DisplayAccessor;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.protocol.Packet;
@@ -77,7 +79,8 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
         this.noPhysics = true;
         this.setInvisible(true);
 
-        chassis = new ItemDisplayElement(Items.DIAMOND_BLOCK);
+        var item = Items.DIAMOND_BLOCK.getDefaultInstance();
+        chassis = new ItemDisplayElement(item);
         chassis.setTeleportDuration(3);
         chassis.setInterpolationDuration(2);
         chassis.setScale(new Vector3f(halfWidth, halfHeight, halfLength).mul(2.f));
@@ -143,7 +146,7 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
                     .setObjectLayer(DynamicWorld.objLayerMoving)
                     .setMotionType(EMotionType.Dynamic)
                     .setMotionQuality(EMotionQuality.Discrete)
-                    .setFriction(0f);
+                    .setFriction(1f);
 
             bodySettings.setMassPropertiesOverride(new MassProperties()); // Set mass props
             bodySettings.getMassPropertiesOverride().setMass(1500f);
@@ -168,7 +171,7 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
             WheeledVehicleControllerSettings controllerSettings = new WheeledVehicleControllerSettings();
             controllerSettings.getEngine().setMinRpm(4000);
             controllerSettings.getEngine().setMaxRpm(8000);
-            controllerSettings.getEngine().setMaxTorque(10000);
+            controllerSettings.getEngine().setMaxTorque(100);
             controllerSettings.getTransmission().setMode(ETransmissionMode.Auto);
             controllerSettings.getTransmission().setClutchStrength(1.5f);
             controllerSettings.setNumDifferentials(1);
@@ -177,6 +180,8 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
             VehicleDifferentialSettings vds = controllerSettings.getDifferential(0);
             vds.setLeftWheel(2);
             vds.setRightWheel(3);
+            vds.setLimitedSlipRatio(1.1f);
+            vds.setEngineTorqueRatio(2.0f);
 
             var tester = new VehicleCollisionTesterRay(DynamicWorld.objLayerMoving);
             this.vehicle = new VehicleConstraint(chassisBody, vehicleSettings);
@@ -187,8 +192,11 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
             world.getPhysicsSystem().addConstraint(this.vehicle);
             world.getPhysicsSystem().addStepListener(this.vehicle.getStepListener());
 
+            var item = Items.DIAMOND_BLOCK.getDefaultInstance();
+            item.set(DataComponents.ITEM_MODEL, Identifier.fromNamespaceAndPath(Dynamo.MODID, "wheels"));
+
             for (int i = 0; i < 4; i++) {
-                var e = new ItemDisplayElement(Items.DIAMOND_BLOCK);
+                var e = new ItemDisplayElement(item);
                 e.setScale(new Vector3f(width, radius + 0.2f, radius + 0.2f));
                 e.setTranslation(new Vector3f(0, -0.25f, 0));
                 e.setTeleportDuration(3);

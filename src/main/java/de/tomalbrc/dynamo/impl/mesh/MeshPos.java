@@ -93,7 +93,7 @@ public final class MeshPos extends Vec3i {
 
     public static Set<MeshPos> inSphere(MeshPos center, double radius) {
         Set<MeshPos> positions = new HashSet<>();
-        int blockRadius = (int) Math.ceil(radius);
+        int blockRadius = (int)radius;
 
         for (int dx = -blockRadius; dx <= blockRadius; dx++) {
             for (int dy = -blockRadius; dy <= blockRadius; dy++) {

@@ -13,6 +13,7 @@ import de.tomalbrc.dynamo.impl.util.NativeLoader;
 import de.tomalbrc.dynamo.impl.util.WorldAttachment;
 import de.tomalbrc.dynamo.impl.world.DynamicWorld;
 import de.tomalbrc.dynamo.impl.world.DynamicWorldContainer;
+import eu.pb4.polymer.resourcepack.api.PolymerResourcePackUtils;
 import eu.pb4.polymer.virtualentity.api.ElementHolder;
 import eu.pb4.polymer.virtualentity.api.elements.BlockDisplayElement;
 import eu.pb4.polymer.virtualentity.api.elements.ItemDisplayElement;
@@ -44,6 +45,8 @@ public class Dynamo implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        PolymerResourcePackUtils.addModAssets(MODID);
+
         NativeLoader.load();
         initJolt();
 
