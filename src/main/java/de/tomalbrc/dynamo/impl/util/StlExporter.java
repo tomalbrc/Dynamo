@@ -13,7 +13,8 @@ public final class StlExporter {
             FloatBuffer vertices,
             IntBuffer indices,
             int indicesCnt,
-            float offsetX, float offsetY, float offsetZ
+            float offsetX, float offsetY, float offsetZ,
+            boolean doubleSided
     ) throws IOException {
 
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(filename))) {
@@ -76,22 +77,24 @@ public final class StlExporter {
                 writer.newLine();
                 writer.write("  endfacet");
                 writer.newLine();
-//
-//                // backside for double sided tris
-//                writer.write("  facet normal " + (-nx) + " " + (-ny) + " " + (-nz));
-//                writer.newLine();
-//                writer.write("    outer loop");
-//                writer.newLine();
-//                writer.write("      vertex " + x0 + " " + y0 + " " + z0);
-//                writer.newLine();
-//                writer.write("      vertex " + x2 + " " + y2 + " " + z2);
-//                writer.newLine();
-//                writer.write("      vertex " + x1 + " " + y1 + " " + z1);
-//                writer.newLine();
-//                writer.write("    endloop");
-//                writer.newLine();
-//                writer.write("  endfacet");
-//                writer.newLine();
+
+                if (doubleSided) {
+                    // backside for double sided tris
+                    writer.write("  facet normal " + (-nx) + " " + (-ny) + " " + (-nz));
+                    writer.newLine();
+                    writer.write("    outer loop");
+                    writer.newLine();
+                    writer.write("      vertex " + x0 + " " + y0 + " " + z0);
+                    writer.newLine();
+                    writer.write("      vertex " + x2 + " " + y2 + " " + z2);
+                    writer.newLine();
+                    writer.write("      vertex " + x1 + " " + y1 + " " + z1);
+                    writer.newLine();
+                    writer.write("    endloop");
+                    writer.newLine();
+                    writer.write("  endfacet");
+                    writer.newLine();
+                }
             }
 
             writer.write("endsolid " + solidName);

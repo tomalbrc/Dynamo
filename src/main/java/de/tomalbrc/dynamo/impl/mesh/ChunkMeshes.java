@@ -3,6 +3,9 @@ package de.tomalbrc.dynamo.impl.mesh;
 import de.tomalbrc.dynamo.Dynamo;
 import de.tomalbrc.dynamo.impl.config.ModConfig;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.chunk.storage.RegionBitmap;
+import net.minecraft.world.level.chunk.storage.RegionFileStorage;
+import net.minecraft.world.level.chunk.storage.RegionStorageInfo;
 
 import java.io.*;
 import java.nio.FloatBuffer;
@@ -11,6 +14,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 public class ChunkMeshes {
     int version = 1;
@@ -49,7 +54,7 @@ public class ChunkMeshes {
     }
 
     public static ChunkMeshes load(byte[] bytes) {
-        try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(bytes))) {
+        try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(decompressGzip(bytes)))) {
             int version = in.readInt();
             int chunkX = in.readInt();
             int chunkZ = in.readInt();
@@ -116,11 +121,32 @@ public class ChunkMeshes {
                 }
             }
 
-            return baos.toByteArray();
+            return compressGzip(baos.toByteArray());
         } catch (IOException e) {
             throw new RuntimeException("Failed to save ChunkMeshes", e);
         }
     }
+
+    public static byte[] compressGzip(byte[] data) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (GZIPOutputStream gzip = new GZIPOutputStream(baos)) {
+            gzip.write(data);
+        }
+        return baos.toByteArray();
+    }
+
+    public static byte[] decompressGzip(byte[] compressed) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (GZIPInputStream gis = new GZIPInputStream(new ByteArrayInputStream(compressed))) {
+            byte[] buffer = new byte[8192];
+            int len;
+            while ((len = gis.read(buffer)) > 0) {
+                baos.write(buffer, 0, len);
+            }
+        }
+        return baos.toByteArray();
+    }
+
 
     public void remove(MeshPos meshPos) {
         meshes.remove(meshPos.asLong());

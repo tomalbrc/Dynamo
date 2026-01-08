@@ -1,4 +1,5 @@
 plugins {
+    id 'java'
     id 'fabric-loom' version '1.14-SNAPSHOT'
     id 'maven-publish'
 }
@@ -44,7 +45,6 @@ dependencies {
     modImplementation include("eu.pb4:sgui:${project.sgui_version}")
     modImplementation include('me.lucko:fabric-permissions-api:0.6.1')
 
-
     implementation include("io.github.electrostat-lab:snaploader:1.0.0-stable")
     libbulletVariants.each { variant ->
         implementation("com.github.stephengold:jolt-jni-${variant}:3.5.1")
@@ -53,6 +53,18 @@ dependencies {
         //implementation include("com.github.stephengold:Libbulletjme-${variant}:22.0.3")
         //runtimeOnly("com.github.stephengold:Libbulletjme-${variant}:22.0.3:SpRelease")
     }
+
+    testImplementation "net.fabricmc:fabric-loader-junit:${project.loader_version}"
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.0'
+
+    testImplementation 'com.github.noconnor:junitperf-junit5:1.37.0'
+    testRuntimeOnly 'com.github.noconnor:junitperf-junit5:1.37.0'
+}
+
+
+test {
+    useJUnitPlatform()
 }
 
 processResources {

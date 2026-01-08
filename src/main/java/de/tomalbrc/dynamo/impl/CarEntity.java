@@ -219,7 +219,7 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
 
         w.getSuspensionSpring().setMode(ESpringMode.StiffnessAndDamping);
         w.getSuspensionSpring().setStiffness(4000.5f);
-        w.getSuspensionSpring().setDamping(.1f);
+        w.getSuspensionSpring().setDamping(.6f);
 
         if (!front) {
             w.setMaxSteerAngle(0f);

@@ -81,7 +81,7 @@ public class ChunkCache {
         final MeshData meshData = m != null ? m : ChunkSectionCollisionShape.buildChunkCollisionShape(dynamicWorld.serverLevel, blockPos);
         boolean empty = meshData == null || meshData.positions == null || meshData.positions.limit() == 0;
 
-        if (m == null && meshData != null) {
+        if (m == null && !empty) {
             this.chunkMeshes.computeIfAbsent(chunkPos.toLong(), p -> new ChunkMeshes(chunkPos)).put(blockPos, meshData);
         }
 

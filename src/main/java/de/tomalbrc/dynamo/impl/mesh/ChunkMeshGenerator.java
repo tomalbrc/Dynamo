@@ -150,7 +150,7 @@ public class ChunkMeshGenerator {
         return new MeshData(posBuffer, null);
     }
 
-    public static MeshData generateSmoothedMesh(boolean[][][] blocks, float offsetX, float offsetY, float offsetZ) {
+    public static MeshData generateSmoothedMesh(boolean[][][] blocks, float offsetX, float offsetY, float offsetZ, float threshold) {
         int S = PADDED;
         int S2 = S * S;
         int SZ = S2 * S;
@@ -205,7 +205,6 @@ public class ChunkMeshGenerator {
 
         DynamicFloatList pos = new DynamicFloatList(4096);
         DynamicIntList idxList = new DynamicIntList(4096);
-        float threshold = 0.25f;
         float[] edgeVerts = new float[12 * 3];
 
         for (int x = OFFSET; x < S - OFFSET; x++) {

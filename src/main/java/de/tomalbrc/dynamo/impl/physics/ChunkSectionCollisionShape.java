@@ -17,13 +17,13 @@ public class ChunkSectionCollisionShape {
     static final int CHUNK_SIZE = ModConfig.getInstance().chunkSize;
 
     public static MeshData buildSmoothMesh(MeshPos pos, boolean[][][] solid) {
-        var mesh = ChunkMeshGenerator.generateSmoothedMesh(solid, 0,0,0);
+        var mesh = ChunkMeshGenerator.generateSmoothedMesh(solid, 0,0,0, 0.4f);
         if (mesh.positions.capacity() == 0)
             return null;
 
         if (ModConfig.getInstance().exportMesh) {
             try {
-                StlExporter.writeAsciiStl(String.format(Locale.US, "/tmp/section-%d-%d-%d.stl", pos.getX(), pos.getY(), pos.getZ()), "section", mesh.positions, mesh.indices, mesh.indices.capacity(), pos.minBlockX(), pos.minBlockY(), pos.minBlockZ());
+                StlExporter.writeAsciiStl(String.format(Locale.US, "/tmp/section-%d-%d-%d.stl", pos.getX(), pos.getY(), pos.getZ()), "section", mesh.positions, mesh.indices, mesh.indices.capacity(), pos.minBlockX(), pos.minBlockY(), pos.minBlockZ(), true);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
