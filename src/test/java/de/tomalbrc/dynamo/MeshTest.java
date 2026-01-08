@@ -39,11 +39,11 @@ class MeshTest {
         assertNotNull(mesh);
         assertNotNull(mesh.positions);
 
-        try {
-            StlExporter.writeAsciiStl("/tmp/test-section.stl", "section", mesh.positions, mesh.indices, mesh.indices.capacity(), 0, 0, 0, true);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        //try {
+        //    StlExporter.writeAsciiStl("/tmp/test-section.stl", "section", mesh.positions, mesh.indices, mesh.indices.capacity(), 0, 0, 0, true);
+        //} catch (IOException e) {
+        //    throw new RuntimeException(e);
+        //}
     }
 
     @Test

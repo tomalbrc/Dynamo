@@ -54,15 +54,16 @@ public class ChunkCache {
 
     private void doGen(DynamicWorld dynamicWorld, MeshPos pos, Runnable onFinish, long key) {
         try {
+            Body result = generateBodyWithMesh(dynamicWorld, pos);
+            Integer oldId = terrainObjects.remove(key);
+
             BodyInterface bi = dynamicWorld.getPhysicsSystem().getBodyInterface();
 
-            Integer oldId = terrainObjects.remove(key);
             if (oldId != null) {
                 bi.removeBody(oldId);
                 bi.destroyBody(oldId);
             }
 
-            Body result = generateBodyWithMesh(dynamicWorld, pos);
             bi.addBody(result.getId(), EActivation.DontActivate);
 
             this.terrainObjects.put(key, result.getId());
@@ -108,8 +109,9 @@ public class ChunkCache {
 
         for (int i = 0; i < idVector.size(); i++) {
             var bid = idVector.get(i);
-            if (world.physicsSystem.getBodyInterface().getObjectLayer(bid) == DynamicWorld.objLayerMoving && world.physicsSystem.getBodyInterface().isActive(bid)) {
-                var pos = world.physicsSystem.getBodyInterface().getPosition(bid);
+            var bi = world.physicsSystem.getBodyInterface();
+            if (bi.getObjectLayer(bid) == DynamicWorld.objLayerMoving && bi.isActive(bid)) {
+                var pos = bi.getPosition(bid);
 
                 BlockPos centerBlock = BlockPos.containing(pos.x(), pos.y(), pos.z());
                 MeshPos meshCenter = MeshPos.of(centerBlock);
@@ -142,7 +144,7 @@ public class ChunkCache {
                 );
             });
 
-            //this.terrainObjectsProcessing.entrySet().removeIf(x -> x.getValue().isDone());
+            this.terrainObjectsProcessing.entrySet().removeIf(x -> x.getValue().isDone());
 
             if (mainPositions.contains(meshPos)) {
                 CompletableFuture<Void> currentTask = this.terrainObjectsProcessing.get(meshKey);
