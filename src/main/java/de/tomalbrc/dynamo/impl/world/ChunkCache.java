@@ -6,14 +6,17 @@ import com.github.stephengold.joltjni.enumerate.EBodyType;
 import com.github.stephengold.joltjni.enumerate.EMotionType;
 import de.tomalbrc.dynamo.Dynamo;
 import de.tomalbrc.dynamo.impl.config.ModConfig;
-import de.tomalbrc.dynamo.impl.mesh.ChunkMeshGenerator;
+import de.tomalbrc.dynamo.impl.mesh.MeshData;
 import de.tomalbrc.dynamo.impl.mesh.MeshPos;
 import de.tomalbrc.dynamo.impl.physics.ChunkSectionCollisionShape;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.chunk.LevelChunk;
 import org.jetbrains.annotations.NotNull;
 
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -66,7 +69,7 @@ public class ChunkCache {
     }
 
     private static @NotNull Body generateBodyWithMesh(DynamicWorld dynamicWorld, MeshPos blockPos) {
-        final ChunkMeshGenerator.MeshData meshData = ChunkSectionCollisionShape.buildChunkCollisionShape(dynamicWorld.serverLevel, blockPos);
+        final MeshData meshData = ChunkSectionCollisionShape.buildChunkCollisionShape(dynamicWorld.serverLevel, blockPos);
 
         boolean empty = meshData == null || meshData.positions == null || meshData.positions.limit() == 0;
 
@@ -177,5 +180,17 @@ public class ChunkCache {
 
     public void markDirty(MeshPos meshPos) {
         dirty.add(meshPos);
+    }
+
+    private Path chunkPath(ChunkPos pos) {
+        return
+    }
+
+    public void load(DynamicWorld dynamicWorld, LevelChunk chunk) {
+        FabricLoader.getInstance().getGameDir().resolve("dynamo/chunk" + chunk.getPos().toString())
+    }
+
+    public void save(DynamicWorld dynamicWorld, LevelChunk chunk) {
+
     }
 }

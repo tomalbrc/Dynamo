@@ -67,12 +67,6 @@ public class DynamicWorld {
         this.chunkCache.markDirty(MeshPos.of(blockPos));
     }
 
-    public void unloadChunk(ServerLevel level, LevelChunk chunk) {
-        Dynamo.COLLISION_GEN.execute(() -> {
-            this.chunkCache.remove(this, chunk);
-        });
-    }
-
     public void tick(ServerLevel serverLevel) {
         boolean skip = serverLevel.getGameTime() % 2 != 0;
         if (!skip) {
@@ -116,5 +110,17 @@ public class DynamicWorld {
         system.init(maxBodies, numBodyMutexes, maxBodyPairs, maxContacts, layerMap, ovbFilter, ovoFilter);
 
         return system;
+    }
+
+    public void unloadChunk(ServerLevel level, LevelChunk chunk) {
+        Dynamo.COLLISION_GEN.execute(() -> {
+            this.chunkCache.remove(this, chunk);
+        });
+    }
+
+    public void loadChunk(ServerLevel level, LevelChunk chunk) {
+        Dynamo.COLLISION_GEN.execute(() -> {
+            this.chunkCache.load(this, chunk);
+        });
     }
 }

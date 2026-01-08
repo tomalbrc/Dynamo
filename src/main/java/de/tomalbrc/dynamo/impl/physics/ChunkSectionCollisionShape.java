@@ -2,6 +2,7 @@ package de.tomalbrc.dynamo.impl.physics;
 
 import de.tomalbrc.dynamo.impl.config.ModConfig;
 import de.tomalbrc.dynamo.impl.mesh.ChunkMeshGenerator;
+import de.tomalbrc.dynamo.impl.mesh.MeshData;
 import de.tomalbrc.dynamo.impl.mesh.MeshPos;
 import de.tomalbrc.dynamo.impl.util.StlExporter;
 import net.minecraft.core.BlockPos;
@@ -15,7 +16,7 @@ import java.util.Locale;
 public class ChunkSectionCollisionShape {
     static final int CHUNK_SIZE = ModConfig.getInstance().chunkSize;
 
-    public static ChunkMeshGenerator.MeshData buildSmoothMesh(MeshPos pos, boolean[][][] solid) {
+    public static MeshData buildSmoothMesh(MeshPos pos, boolean[][][] solid) {
         var mesh = ChunkMeshGenerator.generateSmoothedMesh(solid, 0,0,0);
         if (mesh.positions.capacity() == 0)
             return null;
@@ -31,7 +32,7 @@ public class ChunkSectionCollisionShape {
         return mesh;
     }
 
-    public static ChunkMeshGenerator.MeshData buildBlockMesh(MeshPos pos, boolean[][][] solid) {
+    public static MeshData buildBlockMesh(MeshPos pos, boolean[][][] solid) {
         var mesh = ChunkMeshGenerator.generateMesh(solid, 0,0,0);
         if (mesh.positions.capacity() == 0)
             return null;
@@ -47,7 +48,7 @@ public class ChunkSectionCollisionShape {
         return mesh;
     }
 
-    public static ChunkMeshGenerator.MeshData buildChunkCollisionShape(Level level, MeshPos pos) {
+    public static MeshData buildChunkCollisionShape(Level level, MeshPos pos) {
         int baseX = pos.minBlockX();
         int baseZ = pos.minBlockZ();
         int minY = pos.minBlockY();

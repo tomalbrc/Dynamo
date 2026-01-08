@@ -84,6 +84,10 @@ public class Dynamo implements ModInitializer {
             ((DynamicWorldContainer) level).getDynamicWorld().updateBlock(level, level.getBlockState(pos), pos);
         });
 
+        ServerChunkEvents.CHUNK_LOAD.register((level, chunk) -> {
+            ((DynamicWorldContainer) level).getDynamicWorld().loadChunk(level, chunk);
+        });
+
         ServerChunkEvents.CHUNK_UNLOAD.register((level, chunk) -> {
             ((DynamicWorldContainer) level).getDynamicWorld().unloadChunk(level, chunk);
         });

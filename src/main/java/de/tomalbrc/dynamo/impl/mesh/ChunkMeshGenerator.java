@@ -12,51 +12,35 @@ public class ChunkMeshGenerator {
     private static final int OFFSET = 2;
     private static final int PADDED = ModConfig.getInstance().chunkSize + (OFFSET * 2);
 
-    public static class MeshData {
-        public final FloatBuffer positions;
-        public final IntBuffer indices;
-
-        public MeshData(FloatBuffer positions, IntBuffer indices) {
-            this.positions = positions;
-            this.indices = indices;
-        }
-    }
-
     public static MeshData generateMesh(boolean[][][] blocks, float offsetX, float offsetY, float offsetZ) {
         final int chunkSize = ModConfig.getInstance().chunkSize;
         final int estimateQuads = Math.max(1024, (chunkSize * chunkSize * chunkSize) / 2);
 
-        // Each quad emits 12 vertices (4 triangles * 3 verts) but with overlap per quad:
-        // we emit 12 separate vertex positions (no sharing). => 12 * 3 floats = 36 floats per quad
         final int initialFloatCapacity = Math.max(estimateQuads * 36, 1024);
         DynamicFloatList positions = new DynamicFloatList(initialFloatCapacity);
 
-        // original constants from your environment
-        final int lengthExclusiveUpper = PADDED - 2; // same as original 'len'
-        final int interiorSize = lengthExclusiveUpper - OFFSET; // equals chunkSize
+        final int lengthExclusiveUpper = PADDED - 2;
+        final int interiorSize = lengthExclusiveUpper - OFFSET;
 
-        // Loop main axis: d = 0 (X), 1 (Y), 2 (Z)
         for (int axis = 0; axis < 3; axis++) {
             int[][] mask = new int[interiorSize][interiorSize];
 
-            // slices run from OFFSET .. lengthExclusiveUpper (inclusive)
             for (int slice = OFFSET; slice <= lengthExclusiveUpper; slice++) {
 
-                // Build mask for this slice (mask[uIndex][vIndex])
                 for (int uIndex = 0; uIndex < interiorSize; uIndex++) {
                     for (int vIndex = 0; vIndex < interiorSize; vIndex++) {
                         int xCurr, yCurr, zCurr;
                         int xPrev, yPrev, zPrev;
 
-                        if (axis == 0) { // X axis is the plane coordinate
+                        if (axis == 0) {
                             xCurr = slice; xPrev = slice - 1;
                             yCurr = OFFSET + uIndex; yPrev = yCurr;
                             zCurr = OFFSET + vIndex; zPrev = zCurr;
-                        } else if (axis == 1) { // Y axis plane
+                        } else if (axis == 1) {
                             yCurr = slice; yPrev = slice - 1;
                             xCurr = OFFSET + uIndex; xPrev = xCurr;
                             zCurr = OFFSET + vIndex; zPrev = zCurr;
-                        } else { // axis == 2, Z axis plane
+                        } else {
                             zCurr = slice; zPrev = slice - 1;
                             xCurr = OFFSET + uIndex; xPrev = xCurr;
                             yCurr = OFFSET + vIndex; yPrev = yCurr;
@@ -68,26 +52,21 @@ public class ChunkMeshGenerator {
                         if (currSolid == prevSolid) {
                             mask[uIndex][vIndex] = 0;
                         } else {
-                            // positive: face where current is solid and previous empty
-                            // negative: face where previous is solid and current empty
                             mask[uIndex][vIndex] = currSolid ? 1 : -1;
                         }
                     }
                 }
 
-                // Greedy merge on mask
                 for (int uStart = 0; uStart < interiorSize; uStart++) {
                     for (int vStart = 0; vStart < interiorSize; vStart++) {
                         int maskValue = mask[uStart][vStart];
                         if (maskValue == 0) continue;
 
-                        // compute width (extends in v)
                         int width = 1;
                         while (vStart + width < interiorSize && mask[uStart][vStart + width] == maskValue) {
                             width++;
                         }
 
-                        // compute height (extends in u)
                         int height = 1;
                         outer:
                         while (uStart + height < interiorSize) {
@@ -97,44 +76,40 @@ public class ChunkMeshGenerator {
                             height++;
                         }
 
-                        // plane coordinate along main axis (in world chunk units)
                         final float planePosition = (slice - OFFSET);
 
-                        // local u/v extents
                         final float u0 = uStart;
                         final float v0 = vStart;
-                        final float u1 = uStart + height; // height extends along u
-                        final float v1 = vStart + width;  // width extends along v
+                        final float u1 = uStart + height;
+                        final float v1 = vStart + width;
 
-                        // 4 corner (u,v) pairs (ordered for front winding; reversed if maskValue < 0)
                         float uu0, vv0, uu1, vv1, uu2, vv2, uu3, vv3;
-                        uu0 = u0; vv0 = v0; // A
-                        uu1 = u0; vv1 = v1; // B
-                        uu2 = u1; vv2 = v1; // C
-                        uu3 = u1; vv3 = v0; // D
+                        uu0 = u0; vv0 = v0;
+                        uu1 = u0; vv1 = v1;
+                        uu2 = u1; vv2 = v1;
+                        uu3 = u1; vv3 = v0;
 
-                        // Convert UV->XYZ for each corner (without array alloc)
-                        float x0 = 0, y0 = 0, z0 = 0;
-                        float x1 = 0, y1 = 0, z1 = 0;
-                        float x2 = 0, y2 = 0, z2 = 0;
-                        float x3 = 0, y3 = 0, z3 = 0;
+                        float x0, y0, z0;
+                        float x1, y1, z1;
+                        float x2, y2, z2;
+                        float x3, y3, z3;
 
                         switch (axis) {
-                            case 0: // X plane
+                            case 0:
                                 x0 = planePosition; x1 = planePosition; x2 = planePosition; x3 = planePosition;
                                 y0 = uu0; z0 = vv0;
                                 y1 = uu1; z1 = vv1;
                                 y2 = uu2; z2 = vv2;
                                 y3 = uu3; z3 = vv3;
                                 break;
-                            case 1: // Y plane
+                            case 1:
                                 y0 = planePosition; y1 = planePosition; y2 = planePosition; y3 = planePosition;
                                 x0 = uu0; z0 = vv0;
                                 x1 = uu1; z1 = vv1;
                                 x2 = uu2; z2 = vv2;
                                 x3 = uu3; z3 = vv3;
                                 break;
-                            default: // Z plane
+                            default:
                                 z0 = planePosition; z1 = planePosition; z2 = planePosition; z3 = planePosition;
                                 x0 = uu0; y0 = vv0;
                                 x1 = uu1; y1 = vv1;
@@ -143,43 +118,35 @@ public class ChunkMeshGenerator {
                                 break;
                         }
 
-                        // apply chunk/world offsets
                         x0 += offsetX; y0 += offsetY; z0 += offsetZ;
                         x1 += offsetX; y1 += offsetY; z1 += offsetZ;
                         x2 += offsetX; y2 += offsetY; z2 += offsetZ;
                         x3 += offsetX; y3 += offsetY; z3 += offsetZ;
 
-                        // Emit triangles as vertex lists (no indices).
-                        // FRONT FACE (two triangles): (0,1,2) and (0,2,3)
-                        positions.add(x0); positions.add(y0); positions.add(z0); // v0
-                        positions.add(x1); positions.add(y1); positions.add(z1); // v1
-                        positions.add(x2); positions.add(y2); positions.add(z2); // v2
+                        positions.add(x0); positions.add(y0); positions.add(z0);
+                        positions.add(x1); positions.add(y1); positions.add(z1);
+                        positions.add(x2); positions.add(y2); positions.add(z2);
 
-                        positions.add(x0); positions.add(y0); positions.add(z0); // v0
-                        positions.add(x2); positions.add(y2); positions.add(z2); // v2
-                        positions.add(x3); positions.add(y3); positions.add(z3); // v3
+                        positions.add(x0); positions.add(y0); positions.add(z0);
+                        positions.add(x2); positions.add(y2); positions.add(z2);
+                        positions.add(x3); positions.add(y3); positions.add(z3);
 
-                        // Zero-out mask rectangle we've consumed
                         for (int du = 0; du < height; du++) {
                             for (int dv = 0; dv < width; dv++) {
                                 mask[uStart + du][vStart + dv] = 0;
                             }
                         }
 
-                        // Skip consumed columns
                         vStart += (width - 1);
                     }
                 }
-            } // end slice loop
-        } // end axis loop
+            }
+        }
 
-        // Convert to direct FloatBuffer (native order)
-        FloatBuffer posBuffer = ByteBuffer.allocateDirect(positions.size() * Float.BYTES)
-                .order(ByteOrder.nativeOrder()).asFloatBuffer();
+        FloatBuffer posBuffer = ByteBuffer.allocateDirect(positions.size() * Float.BYTES).order(ByteOrder.nativeOrder()).asFloatBuffer();
         posBuffer.put(positions.toArray(), 0, positions.size());
         posBuffer.flip();
 
-        // Return MeshData with indices == null because the renderer (JOML mesh) expects only positions buffer.
         return new MeshData(posBuffer, null);
     }
 
@@ -302,7 +269,6 @@ public class ChunkMeshGenerator {
         posBuf.put(pos.toArray(), 0, pos.size()).flip();
         IntBuffer idxBuf = ByteBuffer.allocateDirect(idxList.size() * Integer.BYTES).order(ByteOrder.nativeOrder()).asIntBuffer();
         idxBuf.put(idxList.toArray(), 0, idxList.size()).flip();
-        int vertexCount = pos.size() / 3;
         return new MeshData(posBuf, idxBuf);
     }
 
