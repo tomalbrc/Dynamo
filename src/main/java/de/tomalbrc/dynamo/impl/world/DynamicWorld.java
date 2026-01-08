@@ -68,12 +68,14 @@ public class DynamicWorld {
     }
 
     public void unloadChunk(ServerLevel level, LevelChunk chunk) {
-        this.chunkCache.remove(this, chunk);
+        Dynamo.COLLISION_GEN.execute(() -> {
+            this.chunkCache.remove(this, chunk);
+        });
     }
 
     public void tick(ServerLevel serverLevel) {
         boolean skip = serverLevel.getGameTime() % 2 != 0;
-        if (true || !skip) {
+        if (!skip) {
 
             Dynamo.PHYSICS.execute(() -> {
                 this.chunkCache.tick(serverLevel, this);

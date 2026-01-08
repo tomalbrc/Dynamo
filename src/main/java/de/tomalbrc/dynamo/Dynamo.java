@@ -38,7 +38,7 @@ import java.util.concurrent.Executors;
 public class Dynamo implements ModInitializer {
     public static final Logger LOGGER = LogUtils.getLogger();
     public static final ExecutorService COLLISION_GEN = Executors.newVirtualThreadPerTaskExecutor();
-    public static final ExecutorService PHYSICS = Executors.newVirtualThreadPerTaskExecutor();
+    public static final ExecutorService PHYSICS = Executors.newSingleThreadExecutor();
     public static final String MODID = "dynamo";
 
     public static MinecraftServer SERVER;

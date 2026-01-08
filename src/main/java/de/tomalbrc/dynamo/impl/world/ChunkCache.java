@@ -14,15 +14,14 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.chunk.LevelChunk;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 public class ChunkCache {
-    private final Map<Long, Integer> terrainObjects = new ConcurrentHashMap<>();
-    private final Map<Long, CompletableFuture<Void>> terrainObjectsProcessing = new ConcurrentHashMap<>();
+    private final Map<Long, Integer> terrainObjects = Collections.synchronizedMap(new HashMap<>());
+    private final Map<Long, CompletableFuture<Void>> terrainObjectsProcessing = Collections.synchronizedMap(new HashMap<>());
     private final Set<MeshPos> dirty = ConcurrentHashMap.newKeySet();
 
     public ChunkCache() {}
@@ -105,6 +104,10 @@ public class ChunkCache {
             }
         }
 
+        var sss =    interestingPositions.stream().map(x -> x.asLong()).collect(Collectors.toSet());
+        if (sss.size() != interestingPositions.size())
+            throw new RuntimeException("OOOOOO");
+
         for (MeshPos meshPos : interestingPositions) {
             long meshKey = meshPos.asLong();
 
@@ -134,6 +137,7 @@ public class ChunkCache {
                 CompletableFuture<Void> currentTask = this.terrainObjectsProcessing.get(meshKey);
                 if (currentTask != null && !currentTask.isDone()) {
                     currentTask.join();
+                    this.terrainObjectsProcessing.remove(meshKey);
                 }
             }
         }
@@ -156,14 +160,13 @@ public class ChunkCache {
 
     public void remove(DynamicWorld world, LevelChunk chunk) {
         MeshPos center = MeshPos.of(chunk.getPos().getMiddleBlockPosition(0));
-        int r = 16 / ModConfig.getInstance().chunkSize;
+        int r = 16 / ModConfig.getInstance().chunkSize - 1;
         MeshPos.inBox(center, r, 128, r).forEach(m -> {
             long key = m.asLong();
             var future = terrainObjectsProcessing.remove(key);
             if (future != null)
                 future.cancel(true);
 
-            terrainObjectsProcessing.remove(key);
             Integer removedId = terrainObjects.remove(key);
             if (removedId != null) {
                 world.physicsSystem.getBodyInterface().removeBody(removedId);

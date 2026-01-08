@@ -197,7 +197,7 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
 
             for (int i = 0; i < 4; i++) {
                 var e = new ItemDisplayElement(item);
-                e.setScale(new Vector3f(width, radius + 0.2f, radius + 0.2f));
+                e.setScale(new Vector3f(width+0.4f, radius + 0.2f, radius + 0.2f));
                 e.setTranslation(new Vector3f(0, -0.25f, 0));
                 e.setTeleportDuration(3);
                 e.setInterpolationDuration(2);

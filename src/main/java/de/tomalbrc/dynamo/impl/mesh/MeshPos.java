@@ -93,6 +93,7 @@ public final class MeshPos extends Vec3i {
 
     public static Set<MeshPos> inSphere(MeshPos center, double radius) {
         Set<MeshPos> positions = new HashSet<>();
+        positions.add(center);
         int blockRadius = (int)radius;
 
         for (int dx = -blockRadius; dx <= blockRadius; dx++) {
@@ -111,6 +112,7 @@ public final class MeshPos extends Vec3i {
 
     public static Set<MeshPos> inBox(MeshPos center, int radiusX, int radiusY, int radiusZ) {
         Set<MeshPos> positions = new HashSet<>();
+        positions.add(center);
         for (int dx = -radiusX; dx <= radiusX; dx++) {
             for (int dy = -radiusY; dy <= radiusY; dy++) {
                 for (int dz = -radiusZ; dz <= radiusZ; dz++) {
