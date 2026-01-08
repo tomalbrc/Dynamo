@@ -6,26 +6,32 @@ import com.github.stephengold.joltjni.enumerate.EBodyType;
 import com.github.stephengold.joltjni.enumerate.EMotionType;
 import de.tomalbrc.dynamo.Dynamo;
 import de.tomalbrc.dynamo.impl.config.ModConfig;
+import de.tomalbrc.dynamo.impl.mesh.ChunkMeshes;
 import de.tomalbrc.dynamo.impl.mesh.MeshData;
 import de.tomalbrc.dynamo.impl.mesh.MeshPos;
 import de.tomalbrc.dynamo.impl.physics.ChunkSectionCollisionShape;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.Util;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.chunk.LevelChunk;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 public class ChunkCache {
     private final Map<Long, Integer> terrainObjects = Collections.synchronizedMap(new HashMap<>());
     private final Map<Long, CompletableFuture<Void>> terrainObjectsProcessing = Collections.synchronizedMap(new HashMap<>());
     private final Set<MeshPos> dirty = ConcurrentHashMap.newKeySet();
+
+    private final Map<Long, ChunkMeshes> chunkMeshes = Collections.synchronizedMap(new HashMap<>());
 
     public ChunkCache() {}
 
@@ -68,10 +74,16 @@ public class ChunkCache {
         }
     }
 
-    private static @NotNull Body generateBodyWithMesh(DynamicWorld dynamicWorld, MeshPos blockPos) {
-        final MeshData meshData = ChunkSectionCollisionShape.buildChunkCollisionShape(dynamicWorld.serverLevel, blockPos);
-
+    private @NotNull Body generateBodyWithMesh(DynamicWorld dynamicWorld, MeshPos blockPos) {
+        var chunkPos = new ChunkPos(blockPos.center());
+        var oldMesh = this.chunkMeshes.get(chunkPos.toLong());
+        MeshData m = oldMesh == null ? null : oldMesh.get(blockPos);
+        final MeshData meshData = m != null ? m : ChunkSectionCollisionShape.buildChunkCollisionShape(dynamicWorld.serverLevel, blockPos);
         boolean empty = meshData == null || meshData.positions == null || meshData.positions.limit() == 0;
+
+        if (m == null && meshData != null) {
+            this.chunkMeshes.computeIfAbsent(chunkPos.toLong(), p -> new ChunkMeshes(chunkPos)).put(blockPos, meshData);
+        }
 
         ShapeSettings meshShapeSettings = empty ? new EmptyShapeSettings() : new MeshShapeSettings(meshData.positions);
 
@@ -106,10 +118,6 @@ public class ChunkCache {
                 mainPositions.addAll(MeshPos.inSphere(meshCenter, 1));
             }
         }
-
-        var sss =    interestingPositions.stream().map(x -> x.asLong()).collect(Collectors.toSet());
-        if (sss.size() != interestingPositions.size())
-            throw new RuntimeException("OOOOOO");
 
         for (MeshPos meshPos : interestingPositions) {
             long meshKey = meshPos.asLong();
@@ -162,6 +170,12 @@ public class ChunkCache {
     }
 
     public void remove(DynamicWorld world, LevelChunk chunk) {
+        long chunkKey = chunk.getPos().toLong();
+        CompletableFuture.runAsync(() -> {
+            save(chunk);
+            this.chunkMeshes.remove(chunkKey);
+        }, Util.ioPool());
+
         MeshPos center = MeshPos.of(chunk.getPos().getMiddleBlockPosition(0));
         int r = 16 / ModConfig.getInstance().chunkSize - 1;
         MeshPos.inBox(center, r, 128, r).forEach(m -> {
@@ -179,18 +193,49 @@ public class ChunkCache {
     }
 
     public void markDirty(MeshPos meshPos) {
+        var m = this.chunkMeshes.get(new ChunkPos(meshPos.center()).toLong());
+        if (m != null) {
+            m.remove(meshPos);
+        }
+
         dirty.add(meshPos);
     }
 
     private Path chunkPath(ChunkPos pos) {
-        return
+        return FabricLoader.getInstance().getGameDir().resolve(String.format("dynamo/chunk-%d-%d.dat", pos.x, pos.z));
     }
 
-    public void load(DynamicWorld dynamicWorld, LevelChunk chunk) {
-        FabricLoader.getInstance().getGameDir().resolve("dynamo/chunk" + chunk.getPos().toString())
+    public void load(LevelChunk chunk) {
+        var p = chunkPath(chunk.getPos());
+        if (Files.exists(p)) {
+            var m = ChunkMeshes.load(p);
+            if (m != null) {
+                chunkMeshes.put(chunk.getPos().toLong(), m);
+            }
+        }
     }
 
-    public void save(DynamicWorld dynamicWorld, LevelChunk chunk) {
+    public void save(LevelChunk chunk) {
+        var path = chunkPath(chunk.getPos());
+        if (!Files.exists(path.getParent())) {
+            try {
+                Files.createDirectories(chunkPath(chunk.getPos()).getParent());
+            } catch (IOException e) {
+                Dynamo.LOGGER.error("Could not create chunk mesh save directory", e);
+                return;
+            }
+        }
 
+        var p = chunkPath(chunk.getPos());
+        var m = chunkMeshes.get(chunk.getPos().toLong());
+        if (m != null) {
+            var data = m.save();
+
+            if (data != null && data.length > 0) try (FileOutputStream fos = new FileOutputStream(p.toFile())) {
+                fos.write(m.save());
+            } catch (IOException e) {
+                Dynamo.LOGGER.error("Could not save chunk meshes at {}", chunk.getPos());
+            }
+        }
     }
 }

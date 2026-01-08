@@ -120,7 +120,7 @@ public class DynamicWorld {
 
     public void loadChunk(ServerLevel level, LevelChunk chunk) {
         Dynamo.COLLISION_GEN.execute(() -> {
-            this.chunkCache.load(this, chunk);
+            this.chunkCache.load(chunk);
         });
     }
 }
