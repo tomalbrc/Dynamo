@@ -1,18 +1,18 @@
 package de.tomalbrc.dynamo.impl.util;
 
+import it.unimi.dsi.fastutil.floats.FloatArrayList;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.nio.FloatBuffer;
-import java.nio.IntBuffer;
 
 public final class StlExporter {
     public static void writeAsciiStl(
             String filename,
             String solidName,
-            FloatBuffer vertices,
-            IntBuffer indices,
-            int indicesCnt,
+            FloatArrayList vertices,
+            IntArrayList indices,
             float offsetX, float offsetY, float offsetZ,
             boolean doubleSided
     ) throws IOException {
@@ -22,22 +22,22 @@ public final class StlExporter {
             writer.write("solid " + solidName);
             writer.newLine();
 
-            for (int t = 0; t < indicesCnt; t += 3) {
-                int i0 = indices.get(t);
-                int i1 = indices.get(t + 1);
-                int i2 = indices.get(t + 2);
+            for (int t = 0; t < indices.size(); t += 3) {
+                int i0 = indices.getInt(t);
+                int i1 = indices.getInt(t + 1);
+                int i2 = indices.getInt(t + 2);
 
-                float x0 = vertices.get(i0 * 3);
-                float y0 = vertices.get(i0 * 3 + 1);
-                float z0 = vertices.get(i0 * 3 + 2);
+                float x0 = vertices.getFloat(i0 * 3);
+                float y0 = vertices.getFloat(i0 * 3 + 1);
+                float z0 = vertices.getFloat(i0 * 3 + 2);
 
-                float x1 = vertices.get(i1 * 3);
-                float y1 = vertices.get(i1 * 3 + 1);
-                float z1 = vertices.get(i1 * 3 + 2);
+                float x1 = vertices.getFloat(i1 * 3);
+                float y1 = vertices.getFloat(i1 * 3 + 1);
+                float z1 = vertices.getFloat(i1 * 3 + 2);
 
-                float x2 = vertices.get(i2 * 3);
-                float y2 = vertices.get(i2 * 3 + 1);
-                float z2 = vertices.get(i2 * 3 + 2);
+                float x2 = vertices.getFloat(i2 * 3);
+                float y2 = vertices.getFloat(i2 * 3 + 1);
+                float z2 = vertices.getFloat(i2 * 3 + 2);
 
                 float ux = x1 - x0, uy = y1 - y0, uz = z1 - z0;
                 float vx = x2 - x0, vy = y2 - y0, vz = z2 - z0;

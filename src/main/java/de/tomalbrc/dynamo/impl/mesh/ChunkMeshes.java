@@ -2,6 +2,8 @@ package de.tomalbrc.dynamo.impl.mesh;
 
 import de.tomalbrc.dynamo.Dynamo;
 import de.tomalbrc.dynamo.impl.config.ModConfig;
+import it.unimi.dsi.fastutil.floats.FloatArrayList;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.chunk.storage.RegionBitmap;
 import net.minecraft.world.level.chunk.storage.RegionFileStorage;
@@ -71,16 +73,14 @@ public class ChunkMeshes {
                 for (int p = 0; p < posLen; p++) {
                     posArr[p] = in.readFloat();
                 }
-                FloatBuffer positions = FloatBuffer.wrap(posArr);
 
                 int idxLen = in.readInt();
                 int[] idxArr = new int[idxLen];
                 for (int j = 0; j < idxLen; j++) {
                     idxArr[j] = in.readInt();
                 }
-                IntBuffer indices = IntBuffer.wrap(idxArr);
 
-                meshes.put(key, new MeshData(positions, indices));
+                meshes.put(key, new MeshData(new FloatArrayList(posArr), new IntArrayList(idxArr)));
             }
 
             ChunkMeshes cm = new ChunkMeshes(chunkPos, meshes);
@@ -104,20 +104,18 @@ public class ChunkMeshes {
                 out.writeLong(entry.getKey());
 
                 MeshData mesh = entry.getValue();
-                FloatBuffer posBuf = mesh.positions;
-                posBuf.rewind();
-                int posLen = posBuf.remaining();
+                var posBuf = mesh.positions;
+                int posLen = posBuf.size();
                 out.writeInt(posLen);
                 for (int p = 0; p < posLen; p++) {
-                    out.writeFloat(posBuf.get());
+                    out.writeFloat(posBuf.get(p));
                 }
 
-                IntBuffer idxBuf = mesh.indices;
-                idxBuf.rewind();
-                int idxLen = idxBuf.remaining();
+                var idxBuf = mesh.indices;
+                int idxLen = idxBuf.size();
                 out.writeInt(idxLen);
                 for (int i = 0; i < idxLen; i++) {
-                    out.writeInt(idxBuf.get());
+                    out.writeInt(idxBuf.get(i));
                 }
             }
 

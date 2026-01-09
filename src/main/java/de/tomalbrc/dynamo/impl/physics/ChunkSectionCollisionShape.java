@@ -21,13 +21,13 @@ public class ChunkSectionCollisionShape {
     static final Map<Long, ChunkAccess> CHUNK_ACCESS_MAP = Collections.synchronizedMap(new MapMaker().weakValues().makeMap());
 
     public static MeshData buildSmoothMesh(MeshPos pos, boolean[][][] solid) {
-        var mesh = ChunkMeshGenerator.generateSmoothedMesh(solid, 0,0,0, 0.4f);
-        if (mesh.positions.capacity() == 0)
+        var mesh = ChunkMeshGenerator.generateSmoothedMesh(solid, 0.3f);
+        if (mesh.positions.isEmpty())
             return null;
 
         if (ModConfig.getInstance().exportMesh) {
             try {
-                StlExporter.writeAsciiStl(String.format(Locale.US, "/tmp/section-%d-%d-%d.stl", pos.getX(), pos.getY(), pos.getZ()), "section", mesh.positions, mesh.indices, mesh.indices.capacity(), pos.minBlockX(), pos.minBlockY(), pos.minBlockZ(), true);
+                StlExporter.writeAsciiStl(String.format(Locale.US, "/tmp/section-%d-%d-%d.stl", pos.getX(), pos.getY(), pos.getZ()), "section", mesh.positions, mesh.indices, pos.minBlockX(), pos.minBlockY(), pos.minBlockZ(), true);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -37,8 +37,8 @@ public class ChunkSectionCollisionShape {
     }
 
     public static MeshData buildBlockMesh(MeshPos pos, boolean[][][] solid) {
-        var mesh = ChunkMeshGenerator.generateMesh(solid, 0,0,0);
-        if (mesh.positions.capacity() == 0)
+        var mesh = ChunkMeshGenerator.generateMesh(solid);
+        if (mesh.positions.isEmpty())
             return null;
 
         return mesh;

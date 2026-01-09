@@ -11,6 +11,7 @@ import de.tomalbrc.dynamo.impl.mesh.MeshData;
 import de.tomalbrc.dynamo.impl.mesh.MeshPos;
 import de.tomalbrc.dynamo.impl.physics.ChunkSectionCollisionShape;
 import net.fabricmc.loader.api.FabricLoader;
+import net.jpountz.util.ByteBufferUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Util;
@@ -20,6 +21,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.FloatBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -80,13 +82,24 @@ public class ChunkCache {
         var oldMesh = this.chunkMeshes.get(chunkPos.toLong());
         MeshData m = oldMesh == null ? null : oldMesh.get(blockPos);
         final MeshData meshData = m != null ? m : ChunkSectionCollisionShape.buildChunkCollisionShape(dynamicWorld.serverLevel, blockPos);
-        boolean empty = meshData == null || meshData.positions == null || meshData.positions.limit() == 0;
+        boolean empty = meshData == null || meshData.positions == null || meshData.positions.isEmpty();
+
+        if (!empty && (meshData.positions.size() % 3 != 0 || meshData.indices.size() % 3 != 0 ))
+            throw new RuntimeException("oooooo");
 
         if (m == null && !empty) {
             this.chunkMeshes.computeIfAbsent(chunkPos.toLong(), p -> new ChunkMeshes(chunkPos)).put(blockPos, meshData);
         }
 
-        ShapeSettings meshShapeSettings = empty ? new EmptyShapeSettings() : new MeshShapeSettings(meshData.positions);
+        ShapeSettings meshShapeSettings;
+        if (empty) {
+            meshShapeSettings = new EmptyShapeSettings();
+        }
+        else {
+            var b = Jolt.newDirectFloatBuffer(meshData.positions.size());
+            b.put(meshData.positions.toFloatArray());
+            meshShapeSettings = new MeshShapeSettings(b);
+        }
 
         BodyCreationSettings bodySettings = new BodyCreationSettings()
                 .setFriction(1f)
@@ -95,6 +108,8 @@ public class ChunkCache {
                 .setObjectLayer(DynamicWorld.objLayerNonMoving)
                 .setShapeSettings(meshShapeSettings)
                 .setPosition(new RVec3(blockPos.minBlockX(), blockPos.minBlockY(), blockPos.minBlockZ()));
+
+        meshShapeSettings.close();
 
         var bi = dynamicWorld.getPhysicsSystem().getBodyInterface();
         return bi.createBody(bodySettings);

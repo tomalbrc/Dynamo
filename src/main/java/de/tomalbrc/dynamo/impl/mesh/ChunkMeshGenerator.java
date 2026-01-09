@@ -1,308 +1,191 @@
 package de.tomalbrc.dynamo.impl.mesh;
 
 import de.tomalbrc.dynamo.impl.config.ModConfig;
+import it.unimi.dsi.fastutil.floats.FloatArrayList;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.FloatBuffer;
-import java.nio.IntBuffer;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ChunkMeshGenerator {
     private static final int OFFSET = 2;
-    private static final int PADDED = ModConfig.getInstance().chunkSize + (OFFSET * 2);
+    private static final int PADDED = ModConfig.getInstance().chunkSize + (OFFSET*2); // with 2 layers of borders
 
-    public static MeshData generateMesh(boolean[][][] blocks, float offsetX, float offsetY, float offsetZ) {
-        final int chunkSize = ModConfig.getInstance().chunkSize;
-        final int estimateQuads = Math.max(1024, (chunkSize * chunkSize * chunkSize) / 2);
-
-        final int initialFloatCapacity = Math.max(estimateQuads * 36, 1024);
-        DynamicFloatList positions = new DynamicFloatList(initialFloatCapacity);
-
-        final int lengthExclusiveUpper = PADDED - 2;
-        final int interiorSize = lengthExclusiveUpper - OFFSET;
-
-        for (int axis = 0; axis < 3; axis++) {
-            int[][] mask = new int[interiorSize][interiorSize];
-
-            for (int slice = OFFSET; slice <= lengthExclusiveUpper; slice++) {
-
-                for (int uIndex = 0; uIndex < interiorSize; uIndex++) {
-                    for (int vIndex = 0; vIndex < interiorSize; vIndex++) {
-                        int xCurr, yCurr, zCurr;
-                        int xPrev, yPrev, zPrev;
-
-                        if (axis == 0) {
-                            xCurr = slice; xPrev = slice - 1;
-                            yCurr = OFFSET + uIndex; yPrev = yCurr;
-                            zCurr = OFFSET + vIndex; zPrev = zCurr;
-                        } else if (axis == 1) {
-                            yCurr = slice; yPrev = slice - 1;
-                            xCurr = OFFSET + uIndex; xPrev = xCurr;
-                            zCurr = OFFSET + vIndex; zPrev = zCurr;
-                        } else {
-                            zCurr = slice; zPrev = slice - 1;
-                            xCurr = OFFSET + uIndex; xPrev = xCurr;
-                            yCurr = OFFSET + vIndex; yPrev = yCurr;
-                        }
-
-                        boolean currSolid = blocks[xCurr][yCurr][zCurr];
-                        boolean prevSolid = blocks[xPrev][yPrev][zPrev];
-
-                        if (currSolid == prevSolid) {
-                            mask[uIndex][vIndex] = 0;
-                        } else {
-                            mask[uIndex][vIndex] = currSolid ? 1 : -1;
-                        }
-                    }
-                }
-
-                for (int uStart = 0; uStart < interiorSize; uStart++) {
-                    for (int vStart = 0; vStart < interiorSize; vStart++) {
-                        int maskValue = mask[uStart][vStart];
-                        if (maskValue == 0) continue;
-
-                        int width = 1;
-                        while (vStart + width < interiorSize && mask[uStart][vStart + width] == maskValue) {
-                            width++;
-                        }
-
-                        int height = 1;
-                        outer:
-                        while (uStart + height < interiorSize) {
-                            for (int k = 0; k < width; k++) {
-                                if (mask[uStart + height][vStart + k] != maskValue) break outer;
-                            }
-                            height++;
-                        }
-
-                        final float planePosition = (slice - OFFSET);
-
-                        final float u0 = uStart;
-                        final float v0 = vStart;
-                        final float u1 = uStart + height;
-                        final float v1 = vStart + width;
-
-                        float uu0, vv0, uu1, vv1, uu2, vv2, uu3, vv3;
-                        uu0 = u0; vv0 = v0;
-                        uu1 = u0; vv1 = v1;
-                        uu2 = u1; vv2 = v1;
-                        uu3 = u1; vv3 = v0;
-
-                        float x0, y0, z0;
-                        float x1, y1, z1;
-                        float x2, y2, z2;
-                        float x3, y3, z3;
-
-                        switch (axis) {
-                            case 0:
-                                x0 = planePosition; x1 = planePosition; x2 = planePosition; x3 = planePosition;
-                                y0 = uu0; z0 = vv0;
-                                y1 = uu1; z1 = vv1;
-                                y2 = uu2; z2 = vv2;
-                                y3 = uu3; z3 = vv3;
-                                break;
-                            case 1:
-                                y0 = planePosition; y1 = planePosition; y2 = planePosition; y3 = planePosition;
-                                x0 = uu0; z0 = vv0;
-                                x1 = uu1; z1 = vv1;
-                                x2 = uu2; z2 = vv2;
-                                x3 = uu3; z3 = vv3;
-                                break;
-                            default:
-                                z0 = planePosition; z1 = planePosition; z2 = planePosition; z3 = planePosition;
-                                x0 = uu0; y0 = vv0;
-                                x1 = uu1; y1 = vv1;
-                                x2 = uu2; y2 = vv2;
-                                x3 = uu3; y3 = vv3;
-                                break;
-                        }
-
-                        x0 += offsetX; y0 += offsetY; z0 += offsetZ;
-                        x1 += offsetX; y1 += offsetY; z1 += offsetZ;
-                        x2 += offsetX; y2 += offsetY; z2 += offsetZ;
-                        x3 += offsetX; y3 += offsetY; z3 += offsetZ;
-
-                        positions.add(x0); positions.add(y0); positions.add(z0);
-                        positions.add(x1); positions.add(y1); positions.add(z1);
-                        positions.add(x2); positions.add(y2); positions.add(z2);
-
-                        positions.add(x0); positions.add(y0); positions.add(z0);
-                        positions.add(x2); positions.add(y2); positions.add(z2);
-                        positions.add(x3); positions.add(y3); positions.add(z3);
-
-                        for (int du = 0; du < height; du++) {
-                            for (int dv = 0; dv < width; dv++) {
-                                mask[uStart + du][vStart + dv] = 0;
-                            }
-                        }
-
-                        vStart += (width - 1);
+    public static MeshData generateMesh(boolean[][][] blocks) {
+        MeshData data = new MeshData();
+        var len = PADDED-1;
+        for (int x = 2; x < len; x++) {
+            for (int y = 2; y < len; y++) {
+                for (int z = 2; z < len; z++) {
+                    if (blocks[x][y][z]) {
+                        generateBlockFaces(blocks, x, y, z, data);
                     }
                 }
             }
         }
 
-        FloatBuffer posBuffer = ByteBuffer.allocateDirect(positions.size() * Float.BYTES).order(ByteOrder.nativeOrder()).asFloatBuffer();
-        posBuffer.put(positions.toArray(), 0, positions.size());
-        posBuffer.flip();
-
-        return new MeshData(posBuffer, null);
+        return data;
     }
 
-    public static MeshData generateSmoothedMesh(boolean[][][] blocks, float offsetX, float offsetY, float offsetZ, float threshold) {
-        int S = PADDED;
-        int S2 = S * S;
-        int SZ = S2 * S;
-        float[] d = new float[SZ];
-        for (int x = 0; x < S; x++) {
-            int xb = x * S2;
-            for (int y = 0; y < S; y++) {
-                int yb = xb + y * S;
-                for (int z = 0; z < S; z++) {
-                    d[yb + z] = blocks[x][y][z] ? 1.0f : 0.0f;
+    private static void generateBlockFaces(boolean[][][] blocks, int x, int y, int z, MeshData data) {
+        int baseIndex = data.positions.size() / 3;
+
+        float[][] cubeVertices = {
+                {x, y, z}, {x+1, y, z}, {x+1, y, z+1}, {x, y, z+1},  // bottom face
+                {x, y+1, z}, {x+1, y+1, z}, {x+1, y+1, z+1}, {x, y+1, z+1}  // top face
+        };
+
+        int[][] faceIndices = {
+                {0, 1, 2, 3},  // bottom
+                {4, 5, 6, 7},  // top
+                {0, 1, 5, 4},  // front
+                {2, 3, 7, 6},  // back
+                {1, 2, 6, 5},  // right
+                {0, 3, 7, 4}   // left
+        };
+
+        int[][] neighborOffsets = {
+                {0, -1, 0},  // bottom
+                {0, 1, 0},   // top
+                {0, 0, -1},  // front
+                {0, 0, 1},   // back
+                {1, 0, 0},   // right
+                {-1, 0, 0}   // left
+        };
+
+        for (int face = 0; face < 6; face++) {
+            int nx = x + neighborOffsets[face][0];
+            int ny = y + neighborOffsets[face][1];
+            int nz = z + neighborOffsets[face][2];
+
+            if (!blocks[nx][ny][nz]) {
+                for (int i = 0; i < 4; i++) {
+                    int vertexIdx = faceIndices[face][i];
+                    data.positions.add(cubeVertices[vertexIdx][0]);
+                    data.positions.add(cubeVertices[vertexIdx][1]);
+                    data.positions.add(cubeVertices[vertexIdx][2]);
                 }
+
+                data.indices.add(baseIndex);
+                data.indices.add(baseIndex + 1);
+                data.indices.add(baseIndex + 2);
+                data.indices.add(baseIndex);
+                data.indices.add(baseIndex + 2);
+                data.indices.add(baseIndex + 3);
+
+                baseIndex += 4;
             }
         }
-
-        float[] tmpX = new float[SZ];
-        for (int x = 1; x < S - 1; x++) {
-            int xm = (x - 1) * S2;
-            int xb = x * S2;
-            int xp = (x + 1) * S2;
-            for (int y = 1; y < S - 1; y++) {
-                int yb = y * S;
-                for (int z = 1; z < S - 1; z++) {
-                    tmpX[xb + yb + z] = d[xm + yb + z] + d[xb + yb + z] + d[xp + yb + z];
-                }
-            }
-        }
-
-        float[] tmpY = new float[SZ];
-        for (int x = 1; x < S - 1; x++) {
-            int xb = x * S2;
-            for (int y = 1; y < S - 1; y++) {
-                int ym = (y - 1) * S;
-                int yb = y * S;
-                int yp = (y + 1) * S;
-                for (int z = 1; z < S - 1; z++) {
-                    tmpY[xb + yb + z] = tmpX[xb + ym + z] + tmpX[xb + yb + z] + tmpX[xb + yp + z];
-                }
-            }
-        }
-
-        for (int x = 1; x < S - 1; x++) {
-            int xb = x * S2;
-            for (int y = 1; y < S - 1; y++) {
-                int yb = y * S;
-                for (int z = 1; z < S - 1; z++) {
-                    int idx = xb + yb + z;
-                    float sum = tmpY[idx - 1] + tmpY[idx] + tmpY[idx + 1];
-                    d[idx] = sum / 27f;
-                }
-            }
-        }
-
-        DynamicFloatList pos = new DynamicFloatList(4096);
-        DynamicIntList idxList = new DynamicIntList(4096);
-        float[] edgeVerts = new float[12 * 3];
-
-        for (int x = OFFSET; x < S - OFFSET; x++) {
-            for (int y = OFFSET; y < S - OFFSET; y++) {
-                for (int z = OFFSET; z < S - OFFSET; z++) {
-                    int base = x * S2 + y * S + z;
-                    float d0 = d[base];
-                    float d1 = d[base + S2];
-                    float d2 = d[base + S2 + 1];
-                    float d3 = d[base + 1];
-                    float d4 = d[base + S];
-                    float d5 = d[base + S + S2];
-                    float d6 = d[base + S + S2 + 1];
-                    float d7 = d[base + S + 1];
-
-                    int cubeIndex = 0;
-                    if (d0 >= threshold) cubeIndex |= 1;
-                    if (d1 >= threshold) cubeIndex |= 2;
-                    if (d2 >= threshold) cubeIndex |= 4;
-                    if (d3 >= threshold) cubeIndex |= 8;
-                    if (d4 >= threshold) cubeIndex |= 16;
-                    if (d5 >= threshold) cubeIndex |= 32;
-                    if (d6 >= threshold) cubeIndex |= 64;
-                    if (d7 >= threshold) cubeIndex |= 128;
-
-                    int edgeMask = EDGE_TABLE[cubeIndex];
-                    if (edgeMask == 0) continue;
-
-                    if ((edgeMask & 1) != 0) interpInto(edgeVerts, 0, x, y, z, x + 1, y, z, d0, d1, threshold);
-                    if ((edgeMask & 2) != 0) interpInto(edgeVerts, 1, x + 1, y, z, x + 1, y, z + 1, d1, d2, threshold);
-                    if ((edgeMask & 4) != 0) interpInto(edgeVerts, 2, x + 1, y, z + 1, x, y, z + 1, d2, d3, threshold);
-                    if ((edgeMask & 8) != 0) interpInto(edgeVerts, 3, x, y, z + 1, x, y, z, d3, d0, threshold);
-                    if ((edgeMask & 16) != 0) interpInto(edgeVerts, 4, x, y + 1, z, x + 1, y + 1, z, d4, d5, threshold);
-                    if ((edgeMask & 32) != 0) interpInto(edgeVerts, 5, x + 1, y + 1, z, x + 1, y + 1, z + 1, d5, d6, threshold);
-                    if ((edgeMask & 64) != 0) interpInto(edgeVerts, 6, x + 1, y + 1, z + 1, x, y + 1, z + 1, d6, d7, threshold);
-                    if ((edgeMask & 128) != 0) interpInto(edgeVerts, 7, x, y + 1, z + 1, x, y + 1, z, d7, d4, threshold);
-                    if ((edgeMask & 256) != 0) interpInto(edgeVerts, 8, x, y, z, x, y + 1, z, d0, d4, threshold);
-                    if ((edgeMask & 512) != 0) interpInto(edgeVerts, 9, x + 1, y, z, x + 1, y + 1, z, d1, d5, threshold);
-                    if ((edgeMask & 1024) != 0) interpInto(edgeVerts, 10, x + 1, y, z + 1, x + 1, y + 1, z + 1, d2, d6, threshold);
-                    if ((edgeMask & 2048) != 0) interpInto(edgeVerts, 11, x, y, z + 1, x, y + 1, z + 1, d3, d7, threshold);
-
-                    int[] tri = TRIANGLE_TABLE[cubeIndex];
-                    for (int i = 0; tri[i] != -1; i += 3) {
-                        int baseIndex = pos.size() / 3;
-                        for (int j = 0; j < 3; j++) {
-                            int vi = tri[i + j];
-                            int off = vi * 3;
-                            pos.add(edgeVerts[off] - OFFSET + offsetX);
-                            pos.add(edgeVerts[off + 1] - OFFSET + offsetY);
-                            pos.add(edgeVerts[off + 2] - OFFSET + offsetZ);
-                        }
-                        idxList.add(baseIndex);
-                        idxList.add(baseIndex + 1);
-                        idxList.add(baseIndex + 2);
-                    }
-                }
-            }
-        }
-
-        FloatBuffer posBuf = ByteBuffer.allocateDirect(pos.size() * Float.BYTES).order(ByteOrder.nativeOrder()).asFloatBuffer();
-        posBuf.put(pos.toArray(), 0, pos.size()).flip();
-        IntBuffer idxBuf = ByteBuffer.allocateDirect(idxList.size() * Integer.BYTES).order(ByteOrder.nativeOrder()).asIntBuffer();
-        idxBuf.put(idxList.toArray(), 0, idxList.size()).flip();
-        return new MeshData(posBuf, idxBuf);
     }
 
-    private static void interpInto(float[] dest, int edgeIndex, int x1, int y1, int z1, int x2, int y2, int z2, float d1, float d2, float t) {
-        int off = edgeIndex * 3;
-        float mu;
-        if (d2 == d1) mu = 0.5f;
-        else mu = (t - d1) / (d2 - d1);
-        dest[off] = x1 + mu * (x2 - x1);
-        dest[off + 1] = y1 + mu * (y2 - y1);
-        dest[off + 2] = z1 + mu * (z2 - z1);
+    public static MeshData generateSmoothedMesh(boolean[][][] blocks, float threshold) {
+        MeshData data = new MeshData();
+        float[][][] density = new float[PADDED][PADDED][PADDED];
+
+        for (int x = 0; x < PADDED; x++) {
+            for (int y = 0; y < PADDED; y++) {
+                for (int z = 0; z < PADDED; z++) {
+                    density[x][y][z] = blocks[x][y][z] ? 1.0f : 0.0f;
+                }
+            }
+        }
+
+        smoothDensityField(density);
+
+        for (int x = OFFSET; x < PADDED - OFFSET; x++) {
+            for (int y = OFFSET; y < PADDED - OFFSET; y++) {
+                for (int z = OFFSET; z < PADDED - OFFSET; z++) {
+                    processMarchingCube(x, y, z, density, threshold, data);
+                }
+            }
+        }
+
+        return data;
     }
 
-    private static class DynamicFloatList {
-        private float[] a;
-        private int s;
-        DynamicFloatList(int capacity) { a = new float[capacity]; s = 0; }
-        void add(float v) {
-            if (s == a.length) a = Arrays.copyOf(a, a.length * 2);
-            a[s++] = v;
+    private static void processMarchingCube(int x, int y, int z, float[][][] density, float threshold, MeshData data) {
+        float[] d = new float[8];
+        d[0] = density[x][y][z];
+        d[1] = density[x+1][y][z];
+        d[2] = density[x+1][y][z+1];
+        d[3] = density[x][y][z+1];
+        d[4] = density[x][y+1][z];
+        d[5] = density[x+1][y+1][z];
+        d[6] = density[x+1][y+1][z+1];
+        d[7] = density[x][y+1][z+1];
+
+        int cubeIndex = 0;
+        if (d[0] >= threshold) cubeIndex |= 1;
+        if (d[1] >= threshold) cubeIndex |= 2;
+        if (d[2] >= threshold) cubeIndex |= 4;
+        if (d[3] >= threshold) cubeIndex |= 8;
+        if (d[4] >= threshold) cubeIndex |= 16;
+        if (d[5] >= threshold) cubeIndex |= 32;
+        if (d[6] >= threshold) cubeIndex |= 64;
+        if (d[7] >= threshold) cubeIndex |= 128;
+
+        int edgeMask = EDGE_TABLE[cubeIndex];
+        if (edgeMask == 0) return;
+
+        float[][] v = new float[12][3];
+
+        if ((edgeMask & 1) != 0) v[0] = interpolate(x,y,z, x+1,y,z, d[0], d[1], threshold);
+        if ((edgeMask & 2) != 0) v[1] = interpolate(x+1,y,z, x+1,y,z+1, d[1], d[2], threshold);
+        if ((edgeMask & 4) != 0) v[2] = interpolate(x+1,y,z+1, x,y,z+1, d[2], d[3], threshold);
+        if ((edgeMask & 8) != 0) v[3] = interpolate(x,y,z+1, x,y,z, d[3], d[0], threshold);
+        if ((edgeMask & 16) != 0) v[4] = interpolate(x,y+1,z, x+1,y+1,z, d[4], d[5], threshold);
+        if ((edgeMask & 32) != 0) v[5] = interpolate(x+1,y+1,z, x+1,y+1,z+1, d[5], d[6], threshold);
+        if ((edgeMask & 64) != 0) v[6] = interpolate(x+1,y+1,z+1, x,y+1,z+1, d[6], d[7], threshold);
+        if ((edgeMask & 128) != 0) v[7] = interpolate(x,y+1,z+1, x,y+1,z, d[7], d[4], threshold);
+        if ((edgeMask & 256) != 0) v[8] = interpolate(x,y,z, x,y+1,z, d[0], d[4], threshold);
+        if ((edgeMask & 512) != 0) v[9] = interpolate(x+1,y,z, x+1,y+1,z, d[1], d[5], threshold);
+        if ((edgeMask & 1024) != 0) v[10] = interpolate(x+1,y,z+1, x+1,y+1,z+1, d[2], d[6], threshold);
+        if ((edgeMask & 2048) != 0) v[11] = interpolate(x,y,z+1, x,y+1,z+1, d[3], d[7], threshold);
+
+        int[] tri = TRIANGLE_TABLE[cubeIndex];
+        for (int i = 0; tri[i] != -1; i += 3) {
+            int base = data.positions.size() / 3;
+
+            for (int j = 0; j < 3; j++) {
+                float[] vert = v[tri[i + j]];
+                data.positions.add(vert[0] - OFFSET);
+                data.positions.add(vert[1] - OFFSET);
+                data.positions.add(vert[2] - OFFSET);
+            }
+
+            data.indices.add(base);
+            data.indices.add(base + 1);
+            data.indices.add(base + 2);
         }
-        int size() { return s; }
-        float[] toArray() { return Arrays.copyOf(a, s); }
     }
 
-    private static class DynamicIntList {
-        private int[] a;
-        private int s;
-        DynamicIntList(int capacity) { a = new int[capacity]; s = 0; }
-        void add(int v) {
-            if (s == a.length) a = Arrays.copyOf(a, a.length * 2);
-            a[s++] = v;
+    private static float[] interpolate(int x1, int y1, int z1, int x2, int y2, int z2, float d1, float d2, float t) {
+        float mu = (t - d1) / (d2 - d1);
+        return new float[]{
+                x1 + mu * (x2 - x1),
+                y1 + mu * (y2 - y1),
+                z1 + mu * (z2 - z1)
+        };
+    }
+
+    private static void smoothDensityField(float[][][] density) {
+        float[][][] temp = new float[PADDED][PADDED][PADDED];
+        for (int x = 1; x < PADDED - 1; x++) {
+            for (int y = 1; y < PADDED - 1; y++) {
+                for (int z = 1; z < PADDED - 1; z++) {
+                    float sum = 0;
+
+                    for (int dx = -1; dx <= 1; dx++)
+                        for (int dy = -1; dy <= 1; dy++)
+                            for (int dz = -1; dz <= 1; dz++)
+                                sum += density[x + dx][y + dy][z + dz];
+
+                    temp[x][y][z] = sum / 27f;
+                }
+            }
         }
-        int size() { return s; }
-        int[] toArray() { return Arrays.copyOf(a, s); }
+        for (int x = 1; x < PADDED - 1; x++)
+            System.arraycopy(temp[x], 0, density[x], 0, PADDED);
     }
 
     // For any edge, if one vertex is inside of the surface and the other is

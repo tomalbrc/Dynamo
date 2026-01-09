@@ -1,14 +1,22 @@
 package de.tomalbrc.dynamo.impl.mesh;
 
+import it.unimi.dsi.fastutil.floats.FloatArrayList;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
+import java.util.List;
 
 public class MeshData {
-    public final FloatBuffer positions;
-    public final IntBuffer indices;
+    public FloatArrayList positions = new FloatArrayList();
+    public IntArrayList indices = new IntArrayList();
 
-    public MeshData(FloatBuffer positions, IntBuffer indices) {
-        this.positions = positions;
-        this.indices = indices;
+    public MeshData(FloatArrayList floats, IntArrayList integers) {
+        this.positions = floats;
+        this.indices = integers;
+    }
+
+    public MeshData() {
+
     }
 }
