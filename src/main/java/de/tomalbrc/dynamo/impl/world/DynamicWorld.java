@@ -71,12 +71,10 @@ public class DynamicWorld {
     public void tick(ServerLevel serverLevel) {
         boolean skip = serverLevel.getGameTime() % 2 != 0;
         if (!skip) {
-
             Dynamo.PHYSICS.execute(() -> {
                 this.chunkCache.tick(serverLevel, this);
-
-                float timePerStep = 0.10f; // in seconds
-                int numCollisionSteps = 4;
+                float timePerStep = 0.1f; // in seconds
+                int numCollisionSteps = 5;
                 this.physicsSystem.update(timePerStep, numCollisionSteps, this.tempAllocator, jobSystem);
             });
         }

@@ -1,5 +1,6 @@
 package de.tomalbrc.dynamo.impl.entity;
 
+import de.tomalbrc.bil.core.holder.base.SimpleAnimatedHolder;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
@@ -31,8 +32,8 @@ public class CarLights {
         litBlocks.clear();
 
         Vector3f[] offsets = new Vector3f[2];
-        offsets[0] = new Vector3f(1.7f,0.1f,2.6f).rotate(q);
-        offsets[1] = new Vector3f(-1.7f,0.1f,2.6f).rotate(q);
+        offsets[0] = new Vector3f(1.7f,0.25f,2.6f).rotate(q);
+        offsets[1] = new Vector3f(-1.7f,0.25f,2.6f).rotate(q);
 
         Vector3fc dir = new Vector3f(0,0,1).rotate(q);
         for (int i = 0; i < 20; i++) {
@@ -41,7 +42,7 @@ public class CarLights {
                 var npos = pos.add(no.x, no.y, no.z);
                 var bp = BlockPos.containing(npos);
                 var state = level.getBlockState(bp);
-                if (state.isAir() || state.getFluidState().isSource())
+                if (state.isAir() || state.is(Blocks.WATER))
                     litBlocks.put(bp, state);
             }
         }
@@ -50,6 +51,14 @@ public class CarLights {
         packets.add(new ClientboundBlockUpdatePacket(entry.getKey(), Blocks.LIGHT.withPropertiesOf(entry.getValue()).setValue(LightBlock.WATERLOGGED, entry.getValue().getValueOrElse(LightBlock.WATERLOGGED, entry.getValue().getFluidState().is(FluidTags.WATER))).setValue(LightBlock.LEVEL, 13)));
         }
 
+        return packets;
+    }
+
+    public List<Packet<? super @NotNull ClientGamePacketListener>> clear() {
+        List<Packet<? super @NotNull ClientGamePacketListener>> packets = new ArrayList<>();
+        for (var entry : litBlocks.entrySet()) {
+            packets.add(new ClientboundBlockUpdatePacket(entry.getKey(), entry.getValue()));
+        }
         return packets;
     }
 }
