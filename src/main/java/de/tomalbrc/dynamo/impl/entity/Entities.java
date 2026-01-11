@@ -1,4 +1,4 @@
-package de.tomalbrc.dynamo.impl;
+package de.tomalbrc.dynamo.impl.entity;
 
 import eu.pb4.polymer.core.api.entity.PolymerEntityUtils;
 import net.minecraft.core.Registry;

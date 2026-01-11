@@ -11,7 +11,6 @@ import de.tomalbrc.dynamo.impl.mesh.MeshData;
 import de.tomalbrc.dynamo.impl.mesh.MeshPos;
 import de.tomalbrc.dynamo.impl.physics.ChunkSectionCollisionShape;
 import net.fabricmc.loader.api.FabricLoader;
-import net.jpountz.util.ByteBufferUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Util;
@@ -21,19 +20,20 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.FloatBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ChunkCache {
-    private final Map<Long, Integer> terrainObjects = Collections.synchronizedMap(new HashMap<>());
-    private final Map<Long, CompletableFuture<Void>> terrainObjectsProcessing = Collections.synchronizedMap(new HashMap<>());
+    private final Map<Long, Integer> terrainObjects = new ConcurrentHashMap<>();
+    private final Map<Long, CompletableFuture<Void>> terrainObjectsProcessing = new ConcurrentHashMap<>();
     private final Set<MeshPos> dirty = ConcurrentHashMap.newKeySet();
 
-    private final Map<Long, ChunkMeshes> chunkMeshes = Collections.synchronizedMap(new HashMap<>());
+    private final Map<Long, ChunkMeshes> chunkMeshes = new ConcurrentHashMap<>();
 
     public ChunkCache() {}
 
@@ -42,19 +42,17 @@ public class ChunkCache {
             return CompletableFuture.completedFuture(null);
         }
 
-        final long key = pos.asLong();
+        long key = pos.asLong();
 
         if (now) {
-            doGen(dynamicWorld, pos, onFinish, key);
+            generateAndRegisterBody(dynamicWorld, pos, onFinish, key);
             return CompletableFuture.completedFuture(null);
         } else {
-            return CompletableFuture.runAsync(() -> {
-                doGen(dynamicWorld, pos, onFinish, key);
-            }, Dynamo.COLLISION_GEN);
+            return CompletableFuture.runAsync(() -> generateAndRegisterBody(dynamicWorld, pos, onFinish, key), Dynamo.COLLISION_GEN);
         }
     }
 
-    private void doGen(DynamicWorld dynamicWorld, MeshPos pos, Runnable onFinish, long key) {
+    private void generateAndRegisterBody(DynamicWorld dynamicWorld, MeshPos pos, Runnable onFinish, long key) {
         try {
             Body result = generateBodyWithMesh(dynamicWorld, pos);
             Integer oldId = terrainObjects.remove(key);
@@ -78,14 +76,15 @@ public class ChunkCache {
     }
 
     private @NotNull Body generateBodyWithMesh(DynamicWorld dynamicWorld, MeshPos blockPos) {
-        var chunkPos = new ChunkPos(blockPos.center());
-        var oldMesh = this.chunkMeshes.get(chunkPos.toLong());
+        ChunkPos chunkPos = new ChunkPos(blockPos.center());
+        ChunkMeshes oldMesh = this.chunkMeshes.get(chunkPos.toLong());
         MeshData m = oldMesh == null ? null : oldMesh.get(blockPos);
-        final MeshData meshData = m != null ? m : ChunkSectionCollisionShape.buildChunkCollisionShape(dynamicWorld.serverLevel, blockPos);
+        MeshData meshData = m != null ? m : ChunkSectionCollisionShape.buildChunkCollisionShape(dynamicWorld.serverLevel, blockPos);
         boolean empty = meshData == null || meshData.positions == null || meshData.positions.isEmpty();
 
-        if (!empty && (meshData.positions.size() % 3 != 0 || meshData.indices.size() % 3 != 0 ))
-            throw new RuntimeException("oooooo");
+        if (!empty && (meshData.positions.size() % 3 != 0 || meshData.indices.size() % 3 != 0)) {
+            throw new RuntimeException("Mesh data invalid");
+        }
 
         if (m == null && !empty) {
             this.chunkMeshes.computeIfAbsent(chunkPos.toLong(), p -> new ChunkMeshes(chunkPos)).put(blockPos, meshData);
@@ -94,8 +93,7 @@ public class ChunkCache {
         ShapeSettings meshShapeSettings;
         if (empty) {
             meshShapeSettings = new EmptyShapeSettings();
-        }
-        else {
+        } else {
             var b = Jolt.newDirectFloatBuffer(meshData.positions.size());
             b.put(meshData.positions.toFloatArray());
             meshShapeSettings = new MeshShapeSettings(b);
@@ -111,7 +109,7 @@ public class ChunkCache {
 
         meshShapeSettings.close();
 
-        var bi = dynamicWorld.getPhysicsSystem().getBodyInterface();
+        BodyInterface bi = dynamicWorld.getPhysicsSystem().getBodyInterface();
         return bi.createBody(bodySettings);
     }
 
@@ -122,12 +120,11 @@ public class ChunkCache {
         BodyIdVector idVector = new BodyIdVector();
         world.physicsSystem.getActiveBodies(EBodyType.RigidBody, idVector);
 
+        BodyInterface bi = world.physicsSystem.getBodyInterface();
         for (int i = 0; i < idVector.size(); i++) {
-            var bid = idVector.get(i);
-            var bi = world.physicsSystem.getBodyInterface();
+            int bid = idVector.get(i);
             if (bi.getObjectLayer(bid) == DynamicWorld.objLayerMoving && bi.isActive(bid)) {
-                var pos = bi.getPosition(bid);
-
+                RVec3 pos = bi.getPosition(bid);
                 BlockPos centerBlock = BlockPos.containing(pos.x(), pos.y(), pos.z());
                 MeshPos meshCenter = MeshPos.of(centerBlock);
 
@@ -136,44 +133,47 @@ public class ChunkCache {
             }
         }
 
+        this.terrainObjectsProcessing.values().removeIf(CompletableFuture::isDone);
+
         for (MeshPos meshPos : interestingPositions) {
             long meshKey = meshPos.asLong();
 
+            CompletableFuture<Void> existingTask = this.terrainObjectsProcessing.get(meshKey);
+            boolean isHighPriority = mainPositions.contains(meshPos);
+
+            if (existingTask != null) {
+                if (isHighPriority && !existingTask.isDone()) {
+                    existingTask.join();
+                }
+                continue;
+            }
+
             boolean isPresent = this.terrainObjects.containsKey(meshKey);
             boolean isDirty = this.dirty.contains(meshPos);
+
             if (isPresent && !isDirty) continue;
 
-            this.terrainObjectsProcessing.computeIfAbsent(meshKey, key -> {
-                this.dirty.remove(meshPos);
+            boolean wasDirty = this.dirty.remove(meshPos);
 
-                return this.addSectionPhysics(
-                        world,
-                        level.getChunkAt(meshPos.center()),
-                        meshPos,
-                        mainPositions.contains(meshPos),
-                        () -> {
-                            if (isDirty) {
-                                this.wakeNearbyElements(world, meshPos);
-                            }
+            CompletableFuture<Void> task = this.addSectionPhysics(
+                    world,
+                    level.getChunkAt(meshPos.center()),
+                    meshPos,
+                    isHighPriority,
+                    () -> {
+                        if (wasDirty) {
+                            this.wakeNearbyElements(world, meshPos);
                         }
-                );
-            });
+                    }
+            );
 
-            this.terrainObjectsProcessing.entrySet().removeIf(x -> x.getValue().isDone());
-
-            if (mainPositions.contains(meshPos)) {
-                CompletableFuture<Void> currentTask = this.terrainObjectsProcessing.get(meshKey);
-                if (currentTask != null && !currentTask.isDone()) {
-                    currentTask.join();
-                    this.terrainObjectsProcessing.remove(meshKey);
-                }
-            }
+            this.terrainObjectsProcessing.put(meshKey, task);
         }
     }
 
     private void wakeNearbyElements(DynamicWorld world, MeshPos meshPos) {
         float halfSize = (float) ModConfig.getInstance().chunkSize / 2f;
-        var box = new AaBox(new Vec3(
+        AaBox box = new AaBox(new Vec3(
                 meshPos.minBlockX() + halfSize,
                 meshPos.minBlockY() + halfSize,
                 meshPos.minBlockZ() + halfSize
@@ -195,26 +195,28 @@ public class ChunkCache {
 
         MeshPos center = MeshPos.of(chunk.getPos().getMiddleBlockPosition(0));
         int r = 16 / ModConfig.getInstance().chunkSize - 1;
+
         MeshPos.inBox(center, r, 128, r).forEach(m -> {
             long key = m.asLong();
-            var future = terrainObjectsProcessing.remove(key);
-            if (future != null)
+            CompletableFuture<Void> future = terrainObjectsProcessing.remove(key);
+            if (future != null) {
                 future.cancel(true);
+            }
 
             Integer removedId = terrainObjects.remove(key);
             if (removedId != null) {
-                world.physicsSystem.getBodyInterface().removeBody(removedId);
-                world.physicsSystem.getBodyInterface().destroyBody(removedId);
+                BodyInterface bodyInterface = world.physicsSystem.getBodyInterface();
+                bodyInterface.removeBody(removedId);
+                bodyInterface.destroyBody(removedId);
             }
         });
     }
 
     public void markDirty(MeshPos meshPos) {
-        var m = this.chunkMeshes.get(new ChunkPos(meshPos.center()).toLong());
+        ChunkMeshes m = this.chunkMeshes.get(new ChunkPos(meshPos.center()).toLong());
         if (m != null) {
             m.remove(meshPos);
         }
-
         dirty.add(meshPos);
     }
 
@@ -223,9 +225,9 @@ public class ChunkCache {
     }
 
     public void load(LevelChunk chunk) {
-        var p = chunkPath(chunk.getPos());
+        Path p = chunkPath(chunk.getPos());
         if (Files.exists(p)) {
-            var m = ChunkMeshes.load(p);
+            ChunkMeshes m = ChunkMeshes.load(p);
             if (m != null) {
                 chunkMeshes.put(chunk.getPos().toLong(), m);
             }
@@ -233,25 +235,25 @@ public class ChunkCache {
     }
 
     public void save(LevelChunk chunk) {
-        var path = chunkPath(chunk.getPos());
+        Path path = chunkPath(chunk.getPos());
         if (!Files.exists(path.getParent())) {
             try {
-                Files.createDirectories(chunkPath(chunk.getPos()).getParent());
+                Files.createDirectories(path.getParent());
             } catch (IOException e) {
                 Dynamo.LOGGER.error("Could not create chunk mesh save directory", e);
                 return;
             }
         }
 
-        var p = chunkPath(chunk.getPos());
-        var m = chunkMeshes.get(chunk.getPos().toLong());
+        ChunkMeshes m = chunkMeshes.get(chunk.getPos().toLong());
         if (m != null) {
-            var data = m.save();
-
-            if (data != null && data.length > 0) try (FileOutputStream fos = new FileOutputStream(p.toFile())) {
-                fos.write(m.save());
-            } catch (IOException e) {
-                Dynamo.LOGGER.error("Could not save chunk meshes at {}", chunk.getPos());
+            byte[] data = m.save();
+            if (data != null && data.length > 0) {
+                try (FileOutputStream fos = new FileOutputStream(path.toFile())) {
+                    fos.write(data);
+                } catch (IOException e) {
+                    Dynamo.LOGGER.error("Could not save chunk meshes at {}", chunk.getPos());
+                }
             }
         }
     }

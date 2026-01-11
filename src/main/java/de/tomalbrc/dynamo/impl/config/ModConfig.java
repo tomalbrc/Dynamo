@@ -23,6 +23,7 @@ public class ModConfig {
     public int chunkSize = 16;
     public boolean mesh = true;
     public boolean exportMesh = false;
+    public PhysicsConfig physics = new PhysicsConfig();
 
     public static ModConfig getInstance() {
         if (instance == null) {

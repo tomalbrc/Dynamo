@@ -1,6 +1,6 @@
 package de.tomalbrc.dynamo.mixin;
 
-import de.tomalbrc.dynamo.impl.CarEntity;
+import de.tomalbrc.dynamo.impl.entity.CarEntity;
 import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;

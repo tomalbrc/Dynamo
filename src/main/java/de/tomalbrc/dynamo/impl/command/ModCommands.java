@@ -3,7 +3,7 @@ package de.tomalbrc.dynamo.impl.command;
 import com.github.stephengold.joltjni.enumerate.EBodyType;
 import com.mojang.brigadier.CommandDispatcher;
 import de.tomalbrc.dynamo.Dynamo;
-import de.tomalbrc.dynamo.impl.Entities;
+import de.tomalbrc.dynamo.impl.entity.Entities;
 import de.tomalbrc.dynamo.impl.world.DynamicWorldContainer;
 import me.lucko.fabric.api.permissions.v0.Permissions;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;

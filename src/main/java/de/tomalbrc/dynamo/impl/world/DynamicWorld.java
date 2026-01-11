@@ -2,6 +2,7 @@ package de.tomalbrc.dynamo.impl.world;
 
 import com.github.stephengold.joltjni.*;
 import de.tomalbrc.dynamo.Dynamo;
+import de.tomalbrc.dynamo.impl.config.ModConfig;
 import de.tomalbrc.dynamo.impl.mesh.MeshPos;
 import de.tomalbrc.dynamo.impl.physics.DynamicElement;
 import net.minecraft.core.BlockPos;
@@ -74,8 +75,8 @@ public class DynamicWorld {
             Dynamo.PHYSICS.execute(() -> {
                 this.chunkCache.tick(serverLevel, this);
 
-                float timePerStep = 0.1f; // in seconds
-                int numCollisionSteps = 5;
+                float timePerStep = 0.10f; // in seconds
+                int numCollisionSteps = 4;
                 this.physicsSystem.update(timePerStep, numCollisionSteps, this.tempAllocator, jobSystem);
             });
         }
@@ -83,18 +84,18 @@ public class DynamicWorld {
         this.elements.forEach(DynamicElement::update);
     }
 
-    public JobSystem getJobSystem() {
-        return this.jobSystem;
-    }
-
     private static PhysicsSystem createSystem() {
-        int numBpLayers = 1;
-
         ObjectLayerPairFilterTable ovoFilter = new ObjectLayerPairFilterTable(numObjLayers);
-        ovoFilter.enableCollision(objLayerMoving, objLayerMoving);
+
+        if (ModConfig.getInstance().physics.movingObjectCollision) {
+            ovoFilter.enableCollision(objLayerMoving, objLayerMoving);
+        } else {
+            ovoFilter.disableCollision(objLayerMoving, objLayerMoving);
+        }
         ovoFilter.enableCollision(objLayerMoving, objLayerNonMoving);
         ovoFilter.disableCollision(objLayerNonMoving, objLayerNonMoving);
 
+        int numBpLayers = 1;
         BroadPhaseLayerInterfaceTable layerMap = new BroadPhaseLayerInterfaceTable(numObjLayers, numBpLayers);
         layerMap.mapObjectToBroadPhaseLayer(objLayerMoving, 0);
         layerMap.mapObjectToBroadPhaseLayer(objLayerNonMoving, 0);
@@ -103,24 +104,20 @@ public class DynamicWorld {
 
         PhysicsSystem system = new PhysicsSystem();
 
-        int maxBodies = 8_000;
+        int maxBodies = ModConfig.getInstance().physics.maxBodies;
         int numBodyMutexes = 0; // 0 means "use the default number"
-        int maxBodyPairs = 65_536;
-        int maxContacts = 20_480;
+        int maxBodyPairs = ModConfig.getInstance().physics.maxBodyPairs;
+        int maxContacts = ModConfig.getInstance().physics.maxContacts;
         system.init(maxBodies, numBodyMutexes, maxBodyPairs, maxContacts, layerMap, ovbFilter, ovoFilter);
 
         return system;
     }
 
     public void unloadChunk(ServerLevel level, LevelChunk chunk) {
-        Dynamo.COLLISION_GEN.execute(() -> {
-            this.chunkCache.remove(this, chunk);
-        });
+        this.chunkCache.remove(this, chunk);
     }
 
     public void loadChunk(ServerLevel level, LevelChunk chunk) {
-        Dynamo.COLLISION_GEN.execute(() -> {
-            this.chunkCache.load(chunk);
-        });
+        this.chunkCache.load(chunk);
     }
 }

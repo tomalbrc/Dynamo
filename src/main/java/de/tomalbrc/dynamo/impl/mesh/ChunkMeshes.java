@@ -1,17 +1,11 @@
 package de.tomalbrc.dynamo.impl.mesh;
 
 import de.tomalbrc.dynamo.Dynamo;
-import de.tomalbrc.dynamo.impl.config.ModConfig;
 import it.unimi.dsi.fastutil.floats.FloatArrayList;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.chunk.storage.RegionBitmap;
-import net.minecraft.world.level.chunk.storage.RegionFileStorage;
-import net.minecraft.world.level.chunk.storage.RegionStorageInfo;
 
 import java.io.*;
-import java.nio.FloatBuffer;
-import java.nio.IntBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -48,7 +42,7 @@ public class ChunkMeshes {
             try (var s = new FileInputStream(path.toFile())) {
                 return load(s.readAllBytes());
             } catch (IOException e) {
-                Dynamo.LOGGER.error("Could not load mesh at {}", path, e);
+                Dynamo.LOGGER.error("Could not load mesh at {} from file", path, e);
             }
         }
 

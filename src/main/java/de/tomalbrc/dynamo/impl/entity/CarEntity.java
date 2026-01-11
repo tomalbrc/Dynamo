@@ -1,8 +1,9 @@
-package de.tomalbrc.dynamo.impl;
+package de.tomalbrc.dynamo.impl.entity;
 
 import com.github.stephengold.joltjni.*;
 import com.github.stephengold.joltjni.enumerate.EActivation;
 import com.github.stephengold.joltjni.enumerate.EMotionType;
+import com.github.stephengold.joltjni.enumerate.EOverrideMassProperties;
 import de.tomalbrc.bil.core.holder.base.SimpleAnimatedHolder;
 import de.tomalbrc.bil.core.holder.wrapper.Bone;
 import de.tomalbrc.dynamo.api.event.NoPositionSyncEntity;
@@ -73,6 +74,8 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
 
     VehicleConfig config = new VehicleConfig();
 
+    CarLights carLights = new CarLights();
+
     public CarEntity(EntityType<? extends @NotNull Entity> entityType, Level level) {
         super(entityType, level);
 
@@ -137,10 +140,12 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
 
         if (this.vehicle == null) {
             BoxShapeSettings boxSettings = new BoxShapeSettings(new com.github.stephengold.joltjni.Vec3(this.config.halfWidth, this.config.halfHeight, this.config.halfLength));
-            boxSettings.setDensity(500);
+
+            CompoundShapeSettings ss = new StaticCompoundShapeSettings();
+            ss.addShape(0, config.halfHeight, 0, boxSettings);
 
             float centerOfMassY = -2.5f;
-            OffsetCenterOfMassShapeSettings chassisSettings = new OffsetCenterOfMassShapeSettings(new com.github.stephengold.joltjni.Vec3(0, centerOfMassY, 0), boxSettings);
+            OffsetCenterOfMassShapeSettings chassisSettings = new OffsetCenterOfMassShapeSettings(new com.github.stephengold.joltjni.Vec3(0, centerOfMassY, 0), ss);
 
             BodyCreationSettings bodySettings = new BodyCreationSettings()
                     .setShapeSettings(chassisSettings)
@@ -149,18 +154,14 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
                     .setMotionType(EMotionType.Dynamic)
                     .setFriction(1f);
 
+            bodySettings.setMassPropertiesOverride(new MassProperties());
+            bodySettings.getMassPropertiesOverride().setMass(config.mass);
+            bodySettings.setOverrideMassProperties(EOverrideMassProperties.CalculateInertia);
 
             Body chassisBody = world.getPhysicsSystem().getBodyInterface().createBody(bodySettings);
             world.getPhysicsSystem().getBodyInterface().addBody(chassisBody.getId(), EActivation.Activate);
 
             VehicleConstraintSettings constraintSettings = new VehicleConstraintSettings();
-
-            float xOffset = this.config.halfWidth * 1.1f;
-            float frontAxleZ = this.config.halfLength * 1.2f;
-            float rearAxleZ = -this.config.halfLength * 1.01f;
-            float yWheelPos = -0.2f;
-            float radius = 1.7f;
-            float width = 0.3f;
 
             for (WheelConfig wheel : config.wheels) {
                 var wheelWv = createWheel(wheel);
@@ -170,8 +171,8 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
                 item.set(DataComponents.ITEM_MODEL, wheel.model);
 
                 var e = new ItemDisplayElement(item);
-                e.setScale(new Vector3f(wheel.width + 0.4f, wheel.radius + 0.2f, wheel.radius + 0.2f));
-                e.setTranslation(new Vector3f(0, -0.25f, 0));
+                e.setScale(new Vector3f(wheel.width + 0.4f, wheel.radius + 0.6f, wheel.radius + 0.6f));
+                e.setTranslation(new Vector3f(0, -0.5f, 0));
                 e.setTeleportDuration(3);
                 e.setInterpolationDuration(3);
                 e.ignorePositionUpdates();
@@ -341,11 +342,11 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
 
             this.setPos(carPosVec);
 
-            updatePos();
+            updatePos(jQuat);
         }
     }
 
-    public void updatePos() {
+    public void updatePos(Quaternionf quat) {
         List<Packet<? super @NotNull ClientGamePacketListener>> packets = new ArrayList<>();
         var pos1 = (new ClientboundEntityPositionSyncPacket(this.getId(), new PositionMoveRotation(chassis.getCurrentPos(), chassis.getCurrentPos(), 0f, 0f), false));
         var pos2 = (new ClientboundEntityPositionSyncPacket(this.chassis.getEntityId(), new PositionMoveRotation(chassis.getCurrentPos(), chassis.getCurrentPos(), 0f, 0f), false));
@@ -358,6 +359,10 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
                 packets.add(new ClientboundEntityPositionSyncPacket(id, new PositionMoveRotation(element.getCurrentPos(), element.getCurrentPos(), 0f, 0f), false));
             }
         }
+
+        var np = carLights.rescan(level(), chassis.getCurrentPos(), quat);
+        packets.addAll(np);
+
         this.holder.sendPacket(new ClientboundBundlePacket(packets));
     }
 
