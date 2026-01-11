@@ -4,10 +4,13 @@ import com.github.stephengold.joltjni.*;
 import com.github.stephengold.joltjni.enumerate.EActivation;
 import com.github.stephengold.joltjni.enumerate.EMotionType;
 import com.mojang.logging.LogUtils;
+import de.tomalbrc.bil.core.model.Model;
 import de.tomalbrc.dynamo.api.event.BlockEvents;
 import de.tomalbrc.dynamo.impl.Entities;
 import de.tomalbrc.dynamo.impl.command.ModCommands;
 import de.tomalbrc.dynamo.impl.mesh.Shaper;
+import de.tomalbrc.dynamo.impl.model.Loader;
+import de.tomalbrc.dynamo.impl.model.Models;
 import de.tomalbrc.dynamo.impl.physics.DynamicElement;
 import de.tomalbrc.dynamo.impl.util.NativeLoader;
 import de.tomalbrc.dynamo.impl.util.WorldAttachment;
@@ -44,9 +47,13 @@ public class Dynamo implements ModInitializer {
 
     public static MinecraftServer SERVER;
 
+    public static Model model;
+
     @Override
     public void onInitialize() {
         PolymerResourcePackUtils.addModAssets(MODID);
+
+        Loader.load("car112").ifPresent(model -> Models.put("car112", model));
 
         NativeLoader.load();
         initJolt();
@@ -82,7 +89,6 @@ public class Dynamo implements ModInitializer {
         });
 
         
-
         BlockEvents.Block.BLOCK_UPDATE.register((level, pos, blockState, blockPos) -> {
             ((DynamicWorldContainer) level).getDynamicWorld().updateBlock(level, level.getBlockState(pos), pos);
         });

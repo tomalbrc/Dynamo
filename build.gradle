@@ -25,6 +25,7 @@ repositories {
     maven { url "https://maven.tomalbrc.de" }
     maven { url 'https://maven.nucleoid.xyz' }
     maven { url 'https://maven.blamejared.com' }
+    mavenLocal()
 }
 
 dependencies {
@@ -45,10 +46,12 @@ dependencies {
     modImplementation include("eu.pb4:sgui:${project.sgui_version}")
     modImplementation include('me.lucko:fabric-permissions-api:0.6.1')
 
+    modImplementation include("de.tomalbrc:blockbench-import-library:${project.bil_version}")
+
     implementation include("io.github.electrostat-lab:snaploader:1.0.0-stable")
     libbulletVariants.each { variant ->
-        implementation("com.github.stephengold:jolt-jni-${variant}:3.5.1")
-        runtimeOnly("com.github.stephengold:jolt-jni-${variant}:3.5.1:ReleaseDp")
+        implementation("com.github.stephengold:jolt-jni-${variant}:3.5.2")
+        runtimeOnly("com.github.stephengold:jolt-jni-${variant}:3.5.2:ReleaseDp")
 
         //implementation include("com.github.stephengold:Libbulletjme-${variant}:22.0.3")
         //runtimeOnly("com.github.stephengold:Libbulletjme-${variant}:22.0.3:SpRelease")

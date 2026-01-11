@@ -1,15 +1,18 @@
 package de.tomalbrc.dynamo.impl;
 
 import com.github.stephengold.joltjni.*;
-import com.github.stephengold.joltjni.enumerate.*;
-import de.tomalbrc.dynamo.Dynamo;
+import com.github.stephengold.joltjni.enumerate.EActivation;
+import com.github.stephengold.joltjni.enumerate.EMotionType;
+import de.tomalbrc.bil.core.holder.base.SimpleAnimatedHolder;
+import de.tomalbrc.bil.core.holder.wrapper.Bone;
 import de.tomalbrc.dynamo.api.event.NoPositionSyncEntity;
-import de.tomalbrc.dynamo.impl.physics.DynamicElement;
+import de.tomalbrc.dynamo.impl.config.vehicle.VehicleConfig;
+import de.tomalbrc.dynamo.impl.config.vehicle.WheelConfig;
+import de.tomalbrc.dynamo.impl.model.Models;
 import de.tomalbrc.dynamo.impl.util.Util;
 import de.tomalbrc.dynamo.impl.world.DynamicWorld;
 import de.tomalbrc.dynamo.impl.world.DynamicWorldContainer;
 import eu.pb4.polymer.core.api.entity.PolymerEntity;
-import eu.pb4.polymer.virtualentity.api.ElementHolder;
 import eu.pb4.polymer.virtualentity.api.attachment.EntityAttachment;
 import eu.pb4.polymer.virtualentity.api.elements.DisplayElement;
 import eu.pb4.polymer.virtualentity.api.elements.GenericEntityElement;
@@ -46,6 +49,7 @@ import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
+import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 import xyz.nucleoid.packettweaker.PacketContext;
@@ -55,22 +59,19 @@ import java.util.List;
 
 public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEntity {
     public static Identifier ID = Util.id("car");
+    private static final float BOOST_STRENGTH = 4000.0f;
 
-    float halfWidth = 1.1f;
-    float halfHeight = 0.1f;
-    float halfLength = 1.4f;
-
-    ElementHolder holder;
+    SimpleAnimatedHolder holder;
     DisplayElement chassis;
     List<DisplayElement> wheels = new ArrayList<>();
 
     DynamicWorld world;
     VehicleConstraint vehicle;
     int vehicleBodyId;
-    DynamicElement loader;
 
-    private static final float BOOST_STRENGTH = 4000.0f;
-    private boolean isBoosting = false;
+    boolean isBoosting = false;
+
+    VehicleConfig config = new VehicleConfig();
 
     public CarEntity(EntityType<? extends @NotNull Entity> entityType, Level level) {
         super(entityType, level);
@@ -80,14 +81,14 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
         this.setInvisible(true);
 
         var item = Items.DIAMOND_BLOCK.getDefaultInstance();
-        chassis = new ItemDisplayElement(item);
-        chassis.setTeleportDuration(3);
-        chassis.setInterpolationDuration(2);
-        chassis.setScale(new Vector3f(halfWidth, halfHeight, halfLength).mul(2.f));
-        chassis.ignorePositionUpdates();
+        this.chassis = new ItemDisplayElement(item);
+        this.chassis.setTeleportDuration(3);
+        this.chassis.setInterpolationDuration(2);
+        this.chassis.setScale(new Vector3f(this.config.halfWidth, this.config.halfHeight, this.config.halfLength).mul(2.f));
+        this.chassis.ignorePositionUpdates();
 
-        this.holder = new ElementHolder();
-        this.holder.addElement(chassis);
+        this.holder = new SimpleAnimatedHolder(Models.get("car112"));
+        this.holder.addElement(this.chassis);
         EntityAttachment.ofTicking(holder, this);
     }
 
@@ -108,11 +109,11 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
             Quat rotation = bi.getRotation(chassisId);
             Mat44 rotationMatrix = Mat44.sRotation(rotation);
 
-            var localForward = new com.github.stephengold.joltjni.Vec3(0, 0, 1);
-            var boostForce = rotationMatrix.multiply3x3(localForward);
-
+            var boostForce = rotationMatrix.multiply3x3(com.github.stephengold.joltjni.Vec3.sAxisZ());
             boostForce.scaleInPlace(BOOST_STRENGTH);
             bi.addForce(chassisId, boostForce);
+
+            rotationMatrix.close();
         }
     }
 
@@ -135,9 +136,10 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
         this.world = world;
 
         if (this.vehicle == null) {
-            BoxShapeSettings boxSettings = new BoxShapeSettings(new com.github.stephengold.joltjni.Vec3(halfWidth, halfHeight, halfLength));
+            BoxShapeSettings boxSettings = new BoxShapeSettings(new com.github.stephengold.joltjni.Vec3(this.config.halfWidth, this.config.halfHeight, this.config.halfLength));
+            boxSettings.setDensity(500);
 
-            float centerOfMassY = -1.5f;
+            float centerOfMassY = -2.5f;
             OffsetCenterOfMassShapeSettings chassisSettings = new OffsetCenterOfMassShapeSettings(new com.github.stephengold.joltjni.Vec3(0, centerOfMassY, 0), boxSettings);
 
             BodyCreationSettings bodySettings = new BodyCreationSettings()
@@ -145,90 +147,98 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
                     .setPosition(new RVec3(getX(), getY(), getZ()))
                     .setObjectLayer(DynamicWorld.objLayerMoving)
                     .setMotionType(EMotionType.Dynamic)
-                    .setMotionQuality(EMotionQuality.Discrete)
                     .setFriction(1f);
 
-            bodySettings.setMassPropertiesOverride(new MassProperties()); // Set mass props
-            bodySettings.getMassPropertiesOverride().setMass(1500f);
 
             Body chassisBody = world.getPhysicsSystem().getBodyInterface().createBody(bodySettings);
             world.getPhysicsSystem().getBodyInterface().addBody(chassisBody.getId(), EActivation.Activate);
 
-            VehicleConstraintSettings vehicleSettings = new VehicleConstraintSettings();
+            VehicleConstraintSettings constraintSettings = new VehicleConstraintSettings();
 
-            float xOffset = halfWidth * 1.1f;
-            float frontAxleZ = halfLength * 1.2f;
-            float rearAxleZ = -halfLength * 1.01f;
+            float xOffset = this.config.halfWidth * 1.1f;
+            float frontAxleZ = this.config.halfLength * 1.2f;
+            float rearAxleZ = -this.config.halfLength * 1.01f;
             float yWheelPos = -0.2f;
-            float radius = 1.4f;
+            float radius = 1.7f;
             float width = 0.3f;
 
-            vehicleSettings.addWheels(createWheel(xOffset, yWheelPos, frontAxleZ, radius, width, true));
-            vehicleSettings.addWheels(createWheel(-xOffset, yWheelPos, frontAxleZ, radius, width, true));
-            vehicleSettings.addWheels(createWheel(xOffset, yWheelPos, rearAxleZ, radius, width, false));
-            vehicleSettings.addWheels(createWheel(-xOffset, yWheelPos, rearAxleZ, radius, width, false));
+            for (WheelConfig wheel : config.wheels) {
+                var wheelWv = createWheel(wheel);
+                constraintSettings.addWheels(wheelWv);
+
+                var item = Items.DIAMOND_BLOCK.getDefaultInstance();
+                item.set(DataComponents.ITEM_MODEL, wheel.model);
+
+                var e = new ItemDisplayElement(item);
+                e.setScale(new Vector3f(wheel.width + 0.4f, wheel.radius + 0.2f, wheel.radius + 0.2f));
+                e.setTranslation(new Vector3f(0, -0.25f, 0));
+                e.setTeleportDuration(3);
+                e.setInterpolationDuration(3);
+                e.ignorePositionUpdates();
+                this.wheels.add(e);
+                this.holder.addElement(e);
+            }
+
+//            constraintSettings.setNumAntiRollBars(1);
+//            var rb = constraintSettings.getAntiRollBar(0);
+//            rb.setLeftWheel(2);
+//            rb.setLeftWheel(3);
 
             WheeledVehicleControllerSettings controllerSettings = new WheeledVehicleControllerSettings();
-            controllerSettings.getEngine().setMinRpm(4000);
-            controllerSettings.getEngine().setMaxRpm(8000);
-            controllerSettings.getEngine().setMaxTorque(100);
-            controllerSettings.getTransmission().setMode(ETransmissionMode.Auto);
-            controllerSettings.getTransmission().setClutchStrength(1.5f);
-            controllerSettings.setNumDifferentials(1);
-            vehicleSettings.setController(controllerSettings);
+            controllerSettings.getEngine().setMinRpm(config.engine.minRpm);
+            controllerSettings.getEngine().setMaxRpm(config.engine.maxRpm);
+            controllerSettings.getEngine().setMaxTorque(config.engine.maxTorque);
+            controllerSettings.getTransmission().setMode(config.transmission.mode);
+            controllerSettings.getTransmission().setGearRatios(config.transmission.gearRations.toFloatArray());
+            controllerSettings.setNumDifferentials(config.differentials.size());
 
-            VehicleDifferentialSettings vds = controllerSettings.getDifferential(0);
-            vds.setLeftWheel(2);
-            vds.setRightWheel(3);
-            vds.setLimitedSlipRatio(1.1f);
-            vds.setEngineTorqueRatio(2.0f);
+            for (int i = 0; i < config.differentials.size(); i++) {
+                var diff = config.differentials.get(i);
 
-            var tester = new VehicleCollisionTesterRay(DynamicWorld.objLayerMoving);
-            this.vehicle = new VehicleConstraint(chassisBody, vehicleSettings);
-            vehicle.setMaxPitchRollAngle(Mth.DEG_TO_RAD*60);
+                VehicleDifferentialSettings vds = controllerSettings.getDifferential(i);
+                vds.setLeftWheel(diff.leftWheel);
+                vds.setRightWheel(diff.rightWheel);
+                vds.setEngineTorqueRatio(diff.engineTorqueRatio);
+                vds.setDifferentialRatio(diff.differentialRatio);
+                vds.setLimitedSlipRatio(diff.limitedSlipRatio);
+            }
+
+            //VehicleDifferentialSettings vds2 = controllerSettings.getDifferential(1);
+            //vds2.setLeftWheel(0);
+            //vds2.setRightWheel(1);
+            //vds2.setEngineTorqueRatio(0);
+            //vds2.setLimitedSlipRatio(Float.MAX_VALUE);
+
+            constraintSettings.setController(controllerSettings);
+
+            var tester = new VehicleCollisionTesterCastCylinder(DynamicWorld.objLayerMoving);
+
+            this.vehicle = new VehicleConstraint(chassisBody, constraintSettings);
+            this.vehicle.setMaxPitchRollAngle(Mth.DEG_TO_RAD * config.maxPitchRollAngle);
             this.vehicle.setVehicleCollisionTester(tester);
             this.vehicleBodyId = chassisBody.getId();
 
             world.getPhysicsSystem().addConstraint(this.vehicle);
             world.getPhysicsSystem().addStepListener(this.vehicle.getStepListener());
-
-            var item = Items.DIAMOND_BLOCK.getDefaultInstance();
-            item.set(DataComponents.ITEM_MODEL, Identifier.fromNamespaceAndPath(Dynamo.MODID, "wheels"));
-
-            for (int i = 0; i < 4; i++) {
-                var e = new ItemDisplayElement(item);
-                e.setScale(new Vector3f(width+0.4f, radius + 0.2f, radius + 0.2f));
-                e.setTranslation(new Vector3f(0, -0.25f, 0));
-                e.setTeleportDuration(3);
-                e.setInterpolationDuration(2);
-                e.ignorePositionUpdates();
-                this.wheels.add(e);
-                this.holder.addElement(e);
-            }
         }
     }
 
-    private WheelSettingsWv createWheel(float x, float y, float z, float radius, float width, boolean front) {
+    private WheelSettingsWv createWheel(WheelConfig wheelConfig) {
         WheelSettingsWv w = new WheelSettingsWv();
-        w.setPosition(new com.github.stephengold.joltjni.Vec3(x, y, z));
-        w.setRadius(radius);
-        w.setWidth(width);
+        w.setPosition(new com.github.stephengold.joltjni.Vec3(wheelConfig.offset.x, wheelConfig.offset.y, wheelConfig.offset.z));
+        w.setRadius(wheelConfig.radius);
+        w.setWidth(wheelConfig.width);
+        w.setMaxBrakeTorque(wheelConfig.maxBrakeTorque);
+        w.setMaxHandBrakeTorque(wheelConfig.maxHandBrakeTorque);
 
-        w.setSuspensionMinLength(0.05f);
-        w.setSuspensionMaxLength(1.0f);
+        w.setSuspensionMinLength(wheelConfig.suspension.minLength);
+        w.setSuspensionMaxLength(wheelConfig.suspension.maxLength);
 
-        w.getSuspensionSpring().setMode(ESpringMode.StiffnessAndDamping);
-        w.getSuspensionSpring().setStiffness(4000.5f);
-        w.getSuspensionSpring().setDamping(.6f);
+        w.getSuspensionSpring().setMode(wheelConfig.suspension.mode);
+        w.getSuspensionSpring().setStiffness(wheelConfig.suspension.stiffness);
+        w.getSuspensionSpring().setDamping(wheelConfig.suspension.damping);
 
-        if (!front) {
-            w.setMaxSteerAngle(0f);
-        } else {
-            w.setMaxSteerAngle(Mth.DEG_TO_RAD * 40);
-        }
-
-        w.setMaxBrakeTorque(2500.0f);
-        w.setMaxHandBrakeTorque(4000.0f);
+        w.setMaxSteerAngle(Mth.DEG_TO_RAD * wheelConfig.maxSteerAngle);
 
         return w;
     }
@@ -281,7 +291,7 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
                 this.handleInput(player, player.getLastClientInput());
             } else {
                 WheeledVehicleController controller = (WheeledVehicleController) this.vehicle.getController();
-                controller.setDriverInput(0, 0, 0.1f, 0);
+                controller.setDriverInput(0.001f, 0, 10f, 0);
             }
 
             if (skip)
@@ -307,11 +317,29 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
             carRot.loadIdentity();
             bi.getPositionAndRotation(chassisBody, carPos, carRot);
 
-            chassis.setOverridePos(new Vec3(carPos.xx(), carPos.yy(), carPos.zz()));
-            chassis.setLeftRotation(new Quaternionf(carRot.getX(), carRot.getY(), carRot.getZ(), carRot.getW()));
-            chassis.startInterpolationIfDirty();
+            var jQuat = new Quaternionf(carRot.getX(), carRot.getY(), carRot.getZ(), carRot.getW());
 
-            this.setPos(carPos.xx(), carPos.yy(), carPos.zz());
+            this.chassis.setOverridePos(new Vec3(carPos.xx(), carPos.yy(), carPos.zz()));
+            this.chassis.setLeftRotation(jQuat);
+            this.chassis.startInterpolationIfDirty();
+
+            var carPosVec = new Vec3(carPos.xx(), carPos.yy(), carPos.zz());
+            for (Bone<?> bone : this.holder.getBones()) {
+                var mmm = new Matrix4f().rotate(jQuat);
+
+                var mat = mmm.mul(bone.getDefaultPose().matrix());
+                bone.element().setTransformation(null, mat);
+                if (bone.element() instanceof GenericEntityElement entityElement) {
+                    entityElement.ignorePositionUpdates();
+                    entityElement.setOverridePos(carPosVec);
+                }
+
+                bone.element().setInterpolationDuration(null, 3);
+                bone.element().setTeleportDuration(null, 3);
+                bone.element().startInterpolationIfDirty(null);
+            }
+
+            this.setPos(carPosVec);
 
             updatePos();
         }
@@ -335,7 +363,7 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
 
     public void handleInput(ServerPlayer player, Input input) {
         WheeledVehicleController controller = (WheeledVehicleController) this.vehicle.getController();
-        float forward = 0;
+        float forward = 0.01f;
         float steering = 0;
         float handBrake = 0;
 
@@ -348,11 +376,11 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
         if (input.right()) steering = 1.0f;
         if (input.jump()) handBrake = 1.0f;
 
-        float brake = (forward == 0f) ? 1.0f : 0.0f;
+        float brake = (forward == 0.01f) ? 1.0f : 0.0f;
 
         var bi = world.getPhysicsSystem().getBodyInterface();
         bi.activateBody(vehicleBodyId);
-        controller.setDriverInput(forward, steering, brake, handBrake);
+        controller.setDriverInput(forward * 0.8f, steering * 0.8f, brake, handBrake);
 
         if (input.jump()) {
             for (int i = 0; i < 4; i++) {
@@ -403,7 +431,7 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
 
     public void reset() {
         var pos = getPhysicsWorld().getPhysicsSystem().getBodyInterface().getPosition(vehicleBodyId);
-        pos.addInPlace(0,1,0);
+        pos.addInPlace(0, 1, 0);
 
         getPhysicsWorld().getPhysicsSystem().getBodyInterface().setPosition(vehicleBodyId, pos, EActivation.Activate);
         getPhysicsWorld().getPhysicsSystem().getBodyInterface().setAngularVelocity(vehicleBodyId, com.github.stephengold.joltjni.Vec3.sZero());
