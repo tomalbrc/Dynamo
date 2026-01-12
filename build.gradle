@@ -22,6 +22,7 @@ base {
 
 repositories {
     mavenCentral()
+
     maven { url "https://maven.tomalbrc.de" }
     maven { url 'https://maven.nucleoid.xyz' }
     maven { url 'https://maven.blamejared.com' }
@@ -47,6 +48,8 @@ dependencies {
     modImplementation include('me.lucko:fabric-permissions-api:0.6.1')
 
     modImplementation include("de.tomalbrc:blockbench-import-library:${project.bil_version}")
+
+    implementation("com.hypixel.hytale:Server:1.0.0")
 
     implementation include("io.github.electrostat-lab:snaploader:1.0.0-stable")
     libbulletVariants.each { variant ->

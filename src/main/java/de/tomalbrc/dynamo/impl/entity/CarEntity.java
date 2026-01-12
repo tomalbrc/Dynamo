@@ -31,6 +31,8 @@ import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
@@ -71,6 +73,7 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
     int vehicleBodyId;
 
     boolean isBoosting = false;
+    boolean lightsOn = false;
 
     VehicleConfig config = new VehicleConfig();
 
@@ -166,10 +169,13 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
         VehicleConstraintSettings constraintSettings = new VehicleConstraintSettings();
         setupWheels(constraintSettings);
 
-//            constraintSettings.setNumAntiRollBars(1);
-//            var rb = constraintSettings.getAntiRollBar(0);
-//            rb.setLeftWheel(2);
-//            rb.setLeftWheel(3);
+        constraintSettings.setNumAntiRollBars(2);
+        var rb = constraintSettings.getAntiRollBar(0);
+        rb.setLeftWheel(3);
+        rb.setRightWheel(2);
+        var rb1 = constraintSettings.getAntiRollBar(1);
+        rb1.setLeftWheel(1);
+        rb1.setRightWheel(0);
 
         WheeledVehicleControllerSettings controllerSettings = new WheeledVehicleControllerSettings();
         controllerSettings.getEngine().setMinRpm(config.engine.minRpm);
@@ -371,10 +377,19 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
             }
         }
 
-        var np = carLights.rescan(level(), chassis.getCurrentPos(), quat);
-        packets.addAll(np);
+        if (lightsOn) {
+            var np = carLights.rescan(level(), chassis.getCurrentPos(), quat);
+            packets.addAll(np);
+        } else if (carLights.hasLightBlocks()) {
+            var np = carLights.clear();
+            packets.addAll(np);
+        }
 
         this.holder.sendPacket(new ClientboundBundlePacket(packets));
+    }
+
+    public void toggleLights() {
+        this.lightsOn = !this.lightsOn;
     }
 
     public void handleInput(ServerPlayer player, Input input) {
@@ -420,9 +435,10 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
 
             var rad = 0.25f;
             ((ServerLevel) level()).sendParticles(ParticleTypes.COPPER_FIRE_FLAME, axle.x() - vel.getX(), axle.y() - vel.getY(), axle.z() - vel.getZ(), 10, rad, rad, rad, 0.11);
+
+            this.applyBoost();
         }
 
-        this.applyBoost();
     }
 
     @Override
@@ -452,5 +468,9 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
         getPhysicsWorld().getPhysicsSystem().getBodyInterface().setPosition(vehicleBodyId, pos, EActivation.Activate);
         getPhysicsWorld().getPhysicsSystem().getBodyInterface().setAngularVelocity(vehicleBodyId, com.github.stephengold.joltjni.Vec3.sZero());
         getPhysicsWorld().getPhysicsSystem().getBodyInterface().setLinearVelocity(vehicleBodyId, com.github.stephengold.joltjni.Vec3.sZero());
+    }
+
+    public void honk() {
+        this.holder.sendPacket(new ClientboundSoundPacket(SoundEvents.WIND_CHARGE_BURST, SoundSource.PLAYERS, this.getX(), this.getY(), this.getZ(), 1.f, 2.f, 0));
     }
 }

@@ -67,7 +67,7 @@ public class ChunkCache {
             bi.addBody(result.getId(), EActivation.DontActivate);
 
             this.terrainObjects.put(key, result.getId());
-            Dynamo.LOGGER.info("Collision body stored for {}", pos.toShortString());
+            Dynamo.LOGGER.debug("Collision body stored for {}", pos.toShortString());
 
             if (onFinish != null) onFinish.run();
         } catch (Throwable t) {

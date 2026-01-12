@@ -59,6 +59,11 @@ public class CarLights {
         for (var entry : litBlocks.entrySet()) {
             packets.add(new ClientboundBlockUpdatePacket(entry.getKey(), entry.getValue()));
         }
+        litBlocks.clear();
         return packets;
+    }
+
+    public boolean hasLightBlocks() {
+        return !litBlocks.isEmpty();
     }
 }
