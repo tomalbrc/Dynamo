@@ -1,7 +1,7 @@
 package de.tomalbrc.dynamo.impl.config.vehicle;
 
 public class EngineConfig {
-    public float minRpm = 1000;
-    public float maxRpm = 12_000;
-    public float maxTorque = 500;
+    public float minRpm = 100;
+    public float maxRpm = 2_000;
+    public float maxTorque = 800;
 }

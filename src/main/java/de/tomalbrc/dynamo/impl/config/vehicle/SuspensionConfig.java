@@ -7,6 +7,6 @@ public class SuspensionConfig {
     public float maxLength = 0.7f;
 
     public ESpringMode mode = ESpringMode.StiffnessAndDamping;
-    public float stiffness = 6500.f;
-    public float damping = .1f;
+    public float stiffness = 2000.f;
+    public float damping = .8f;
 }

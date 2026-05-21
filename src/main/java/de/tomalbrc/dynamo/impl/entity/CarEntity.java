@@ -259,6 +259,9 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
         w.getSuspensionSpring().setStiffness(wheelConfig.suspension.stiffness);
         w.getSuspensionSpring().setDamping(wheelConfig.suspension.damping);
 
+        w.setInertia(10f);
+        w.setAngularDamping(1f);
+
         //w.setLongitudinalFriction(createHighGripCurve());
         //w.setLateralFriction(createHighGripCurve());
 
@@ -408,9 +411,9 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
 
     public void handleInput(ServerPlayer player, Input input) {
         WheeledVehicleController controller = (WheeledVehicleController) this.vehicleConstraint.getController();
-        float forward = 0.01f;
+        float forward = 0.0f;
         float steering = 0;
-        float handBrake = 0;
+        float handBrake = 0.f;
 
         if (input.forward()) forward = 1.0f;
         if (input.backward()) {
@@ -421,7 +424,7 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
         if (input.right()) steering = 1.0f;
         if (input.jump()) handBrake = 1.0f;
 
-        float brake = (forward == 0.01f) ? 1.0f : 0.0f;
+        float brake = 0.0f;
 
         var bi = world.getPhysicsSystem().getBodyInterface();
         bi.activateBody(vehicleBodyId);
