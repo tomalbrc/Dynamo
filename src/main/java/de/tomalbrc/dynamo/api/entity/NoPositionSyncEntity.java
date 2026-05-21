@@ -1,4 +1,4 @@
-package de.tomalbrc.dynamo.api.event;
+package de.tomalbrc.dynamo.api.entity;
 
 public interface NoPositionSyncEntity {
 }

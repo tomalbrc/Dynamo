@@ -13,6 +13,7 @@ public class NativeLoader {
             LibraryInfo info = new LibraryInfo(null, "joltjni", DirectoryPath.USER_DIR);
             NativeBinaryLoader loader = new NativeBinaryLoader(info);
 
+            // TODO: are those correct with the Linux64_fma and Windows64_avx2 versions?
             NativeDynamicLibrary[] libraries = {
                     new NativeDynamicLibrary("linux/aarch64/com/github/stephengold", PlatformPredicate.LINUX_ARM_64),
                     new NativeDynamicLibrary("linux/armhf/com/github/stephengold", PlatformPredicate.LINUX_ARM_32),

@@ -7,6 +7,7 @@ import com.mojang.logging.LogUtils;
 import de.tomalbrc.bil.core.model.Model;
 import de.tomalbrc.dynamo.api.event.BlockEvents;
 import de.tomalbrc.dynamo.impl.command.ModCommands;
+import de.tomalbrc.dynamo.impl.config.VehicleConfigLoader;
 import de.tomalbrc.dynamo.impl.entity.Entities;
 import de.tomalbrc.dynamo.impl.mesh.Shaper;
 import de.tomalbrc.dynamo.impl.model.Loader;
@@ -57,6 +58,8 @@ public class Dynamo implements ModInitializer {
         NativeLoader.load();
         initJolt();
 
+        Models.load();
+        VehicleConfigLoader.loadAll();
         Entities.init();
         ModCommands.register();
         WorldAttachment.registerEventHandler();
@@ -64,6 +67,7 @@ public class Dynamo implements ModInitializer {
         ServerLevelEvents.LOAD.register((minecraftServer, serverLevel) -> {
             ((DynamicWorldContainer)serverLevel).setDynamicWorld(new DynamicWorld(serverLevel));
         });
+
         ServerLevelEvents.UNLOAD.register((minecraftServer, serverLevel) -> {
             var world = ((DynamicWorldContainer)serverLevel).getDynamicWorld();
             if (world != null)
@@ -117,7 +121,7 @@ public class Dynamo implements ModInitializer {
         var level = player.level();
         var world = ((DynamicWorldContainer)level).getDynamicWorld();
 
-        var bodyPos = player.position().offsetRandom(player.getRandom(), 1.5f);
+        var bodyPos = player.position().offsetRandom(player.getRandom(), 3.0f);
 
         var shapeSettings = Shaper.shape(Shapes.block());
         var bodySettings = new BodyCreationSettings()
@@ -161,7 +165,7 @@ public class Dynamo implements ModInitializer {
         var level = player.level();
         var world = ((DynamicWorldContainer)level).getDynamicWorld();
 
-        var bodyPos = player.position().offsetRandom(player.getRandom(), 1.5f);
+        var bodyPos = player.position().offsetRandom(player.getRandom(), 3.0f);
 
         var shapeSettings = Shaper.shape(Shapes.create(AABB.ofSize(Vec3.ZERO, 1, 1, 1f/16f)));
         var bodySettings = new BodyCreationSettings()

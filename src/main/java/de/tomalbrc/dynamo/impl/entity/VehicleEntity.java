@@ -6,11 +6,10 @@ import com.github.stephengold.joltjni.enumerate.EMotionType;
 import com.github.stephengold.joltjni.enumerate.EOverrideMassProperties;
 import de.tomalbrc.bil.core.holder.base.SimpleAnimatedHolder;
 import de.tomalbrc.bil.core.holder.wrapper.Bone;
-import de.tomalbrc.dynamo.api.event.NoPositionSyncEntity;
+import de.tomalbrc.dynamo.api.entity.NoPositionSyncEntity;
 import de.tomalbrc.dynamo.impl.config.vehicle.VehicleConfig;
 import de.tomalbrc.dynamo.impl.config.vehicle.WheelConfig;
 import de.tomalbrc.dynamo.impl.model.Models;
-import de.tomalbrc.dynamo.impl.util.Util;
 import de.tomalbrc.dynamo.impl.world.DynamicWorld;
 import de.tomalbrc.dynamo.impl.world.DynamicWorldContainer;
 import eu.pb4.polymer.core.api.entity.PolymerEntity;
@@ -23,16 +22,16 @@ import eu.pb4.polymer.virtualentity.api.elements.VirtualElement;
 import eu.pb4.polymer.virtualentity.mixin.accessors.DisplayAccessor;
 import net.fabricmc.fabric.api.networking.v1.context.PacketContext;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.*;
 import net.minecraft.network.syncher.SynchedEntityData;
-import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.util.Mth;
@@ -60,8 +59,7 @@ import org.joml.Vector3f;
 import java.util.ArrayList;
 import java.util.List;
 
-public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEntity {
-    public static Identifier ID = Util.id("car");
+public class VehicleEntity extends Entity implements PolymerEntity, NoPositionSyncEntity {
     private static final float BOOST_STRENGTH = 4000.0f;
 
     SimpleAnimatedHolder holder;
@@ -75,12 +73,17 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
     boolean isBoosting = false;
     boolean lightsOn = false;
 
-    VehicleConfig config = new VehicleConfig();
+    VehicleConfig config;
 
-    CarLights carLights = new CarLights();
+    VehicleLights lights;
 
-    public CarEntity(EntityType<? extends @NotNull Entity> entityType, Level level) {
+    int resetCooldownTicks = 0;
+
+    public VehicleEntity(EntityType<? extends @NotNull Entity> entityType, Level level, VehicleConfig config) {
         super(entityType, level);
+
+        this.config = config;
+        this.lights = new VehicleLights(config.lights);
 
         this.setNoGravity(true);
         this.noPhysics = true;
@@ -94,9 +97,24 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
         this.chassis.setScale(new Vector3f(this.config.halfWidth, this.config.halfHeight, this.config.halfLength).mul(2.f));
         this.chassis.ignorePositionUpdates();
 
-        this.holder = new SimpleAnimatedHolder(Models.get("car112"));
+        this.holder = new SimpleAnimatedHolder(Models.get("car"));
         this.holder.addElement(this.chassis);
         EntityAttachment.ofTicking(holder, this);
+
+    }
+
+    @Override
+    protected void reapplyPosition() {
+        super.reapplyPosition();
+
+        if (config == null)
+            return;
+
+        var world = ((DynamicWorldContainer) level()).getDynamicWorld();
+        if (vehicleConstraint == null) setWorld(world);
+
+        var id = this.vehicleConstraint.getVehicleBody().getId();
+        world.getPhysicsSystem().getBodyInterface().setPosition(id, new RVec3(getX(), getY(), getZ()), EActivation.Activate);
     }
 
     @Override
@@ -117,7 +135,7 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
             Mat44 rotationMatrix = Mat44.sRotation(rotation);
 
             var boostForce = rotationMatrix.multiply3x3(com.github.stephengold.joltjni.Vec3.sAxisZ());
-            boostForce.scaleInPlace(BOOST_STRENGTH);
+            boostForce.scaleInPlace(config.boostForce);
             bi.addForce(chassisId, boostForce);
 
             rotationMatrix.close();
@@ -129,7 +147,7 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
     public void onRemoval(@NotNull RemovalReason removalReason) {
         super.onRemoval(removalReason);
 
-        this.holder.sendPacket(new ClientboundBundlePacket(this.carLights.clear()));
+        this.holder.sendPacket(new ClientboundBundlePacket(this.lights.clear()));
 
         if (vehicleConstraint != null) {
             var world = this.getPhysicsWorld();
@@ -157,7 +175,7 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
                 .setPosition(new RVec3(getX(), getY(), getZ()))
                 .setObjectLayer(DynamicWorld.objLayerMoving)
                 .setMotionType(EMotionType.Dynamic)
-                .setFriction(1f);
+                .setFriction(config.friction);
 
         bodySettings.setMassPropertiesOverride(new MassProperties());
         bodySettings.getMassPropertiesOverride().setMass(config.mass);
@@ -169,16 +187,15 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
         VehicleConstraintSettings constraintSettings = new VehicleConstraintSettings();
         setupWheels(constraintSettings);
 
-        constraintSettings.setNumAntiRollBars(2);
-        var rb = constraintSettings.getAntiRollBar(0);
-        rb.setLeftWheel(3);
-        rb.setRightWheel(2);
-        var rb1 = constraintSettings.getAntiRollBar(1);
-        rb1.setLeftWheel(1);
-        rb1.setRightWheel(0);
+        constraintSettings.setNumAntiRollBars(config.antiRollBars.size());
+        for (int i = 0; i < config.antiRollBars.size(); i++) {
+            var antiRollBarConfig =  config.antiRollBars.get(i);
 
-        constraintSettings.getAntiRollBar(0).setStiffness(300f);
-        constraintSettings.getAntiRollBar(1).setStiffness(300f);
+            var rb = constraintSettings.getAntiRollBar(i);
+            rb.setLeftWheel(antiRollBarConfig.leftWheel);
+            rb.setRightWheel(antiRollBarConfig.rightWheel);
+            rb.setStiffness(antiRollBarConfig.stiffness);
+        }
 
         WheeledVehicleControllerSettings controllerSettings = new WheeledVehicleControllerSettings();
         controllerSettings.getEngine().setMinRpm(config.engine.minRpm);
@@ -220,7 +237,6 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
 
             var e = new ItemDisplayElement(item);
             e.setScale(new Vector3f(wheel.width, wheel.radius*2f, wheel.radius*2f));
-            //e.setTranslation(new Vector3f(0, -0.5f, 0));
             e.setTeleportDuration(3);
             e.setInterpolationDuration(3);
             e.ignorePositionUpdates();
@@ -259,23 +275,12 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
         w.getSuspensionSpring().setStiffness(wheelConfig.suspension.stiffness);
         w.getSuspensionSpring().setDamping(wheelConfig.suspension.damping);
 
-        w.setInertia(10f);
-        w.setAngularDamping(1f);
-
-        //w.setLongitudinalFriction(createHighGripCurve());
-        //w.setLateralFriction(createHighGripCurve());
+        w.setInertia(wheelConfig.inertia);
+        w.setAngularDamping(wheelConfig.angularDamping);
 
         w.setMaxSteerAngle(Mth.DEG_TO_RAD * wheelConfig.maxSteerAngle);
 
         return w;
-    }
-
-    private static LinearCurve createHighGripCurve() {
-        LinearCurve curve = new LinearCurve();
-        curve.addPoint(0.0f, 1.8f);   // at zero slip, max grip
-        curve.addPoint(12.0f, 1.2f);  // moderate drop
-        curve.addPoint(25.0f, 0.8f);  // lower grip at high slip
-        return curve;
     }
 
     @Override
@@ -288,6 +293,7 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
     public void modifyRawTrackedData(List<SynchedEntityData.DataValue<?>> data, ServerPlayer player, boolean initial) {
         //var flag = setFlag((byte)1, EntityTrackedData.INVISIBLE_FLAG_INDEX, true);
         //data.add(new SynchedEntityData.DataValue<>(LivingEntityAccessor.getDATA_LIVING_ENTITY_FLAGS().id(), LivingEntityAccessor.getDATA_LIVING_ENTITY_FLAGS().serializer(), flag));
+
         data.add(new SynchedEntityData.DataValue<>(EntityData.SILENT.id(), EntityData.SILENT.serializer(), true));
         data.add(new SynchedEntityData.DataValue<>(DisplayAccessor.getDATA_POS_ROT_INTERPOLATION_DURATION_ID().id(), DisplayAccessor.getDATA_POS_ROT_INTERPOLATION_DURATION_ID().serializer(), 2));
         PolymerEntity.super.modifyRawTrackedData(data, player, initial);
@@ -318,6 +324,8 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
     @Override
     public void baseTick() {
         super.baseTick();
+
+        if (resetCooldownTicks > 0) resetCooldownTicks--;
 
         boolean skip = this.tickCount % 2 == 1;
         if (this.vehicleConstraint != null) {
@@ -395,10 +403,10 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
         }
 
         if (lightsOn) {
-            var np = carLights.rescan(level(), chassis.getCurrentPos(), quat);
+            var np = lights.rescan(level(), chassis.getCurrentPos(), quat);
             packets.addAll(np);
-        } else if (carLights.hasLightBlocks()) {
-            var np = carLights.clear();
+        } else if (lights.hasLightBlocks()) {
+            var np = lights.clear();
             packets.addAll(np);
         }
 
@@ -444,6 +452,11 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
             }
         }
 
+
+        if (!config.canBoost) {
+            return;
+        }
+
         this.setBoosting(player.getLastClientInput().sprint());
         if (isBoosting) {
             var axle = bi.getPosition(this.vehicleBodyId);
@@ -460,6 +473,10 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
 
     @Override
     public boolean hurtServer(@NotNull ServerLevel serverLevel, @NotNull DamageSource damageSource, float f) {
+        if (config.fireResistant && damageSource.is(DamageTypeTags.IS_FIRE)) {
+            return false;
+        }
+
         return damageSource.is(DamageTypeTags.IS_PLAYER_ATTACK) || !damageSource.is(DamageTypeTags.IS_FALL);
     }
 
@@ -479,6 +496,11 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
     }
 
     public void reset() {
+        if (!config.canReset || resetCooldownTicks > 0)
+            return;
+
+        resetCooldownTicks += config.resetCooldown;
+
         var pos = getPhysicsWorld().getPhysicsSystem().getBodyInterface().getPosition(vehicleBodyId);
         pos.addInPlace(0, 1, 0);
 
@@ -488,6 +510,7 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
     }
 
     public void honk() {
-        this.holder.sendPacket(new ClientboundSoundPacket(SoundEvents.WIND_CHARGE_BURST, SoundSource.PLAYERS, this.getX(), this.getY(), this.getZ(), 1.f, 2.f, 0));
+        if (config.canHonk)
+            this.holder.sendPacket(new ClientboundSoundPacket(Holder.direct(SoundEvent.createVariableRangeEvent(config.honkSound)), SoundSource.PLAYERS, this.getX(), this.getY(), this.getZ(), 1.f, 2.f, 0));
     }
 }

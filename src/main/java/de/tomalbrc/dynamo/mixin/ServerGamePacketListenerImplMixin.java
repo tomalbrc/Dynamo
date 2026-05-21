@@ -1,6 +1,6 @@
 package de.tomalbrc.dynamo.mixin;
 
-import de.tomalbrc.dynamo.impl.entity.CarEntity;
+import de.tomalbrc.dynamo.impl.entity.VehicleEntity;
 import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
 import net.minecraft.network.protocol.game.ServerboundSwingPacket;
 import net.minecraft.network.protocol.game.ServerboundUseItemPacket;
@@ -20,24 +20,24 @@ public class ServerGamePacketListenerImplMixin {
     @Inject(method = "handlePlayerAction", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/network/ServerGamePacketListenerImpl;hasClientLoaded()Z"), cancellable = true)
     private void dynamo$onAction(ServerboundPlayerActionPacket packet, CallbackInfo ci) {
         var swap = packet.getAction() == ServerboundPlayerActionPacket.Action.SWAP_ITEM_WITH_OFFHAND;
-        if (swap && player.getVehicle() instanceof CarEntity carEntity) {
-            carEntity.reset();
+        if (swap && player.getVehicle() instanceof VehicleEntity vehicleEntity) {
+            vehicleEntity.reset();
             ci.cancel();
         }
     }
 
     @Inject(method = "handleAnimate", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerPlayer;resetLastActionTime()V"), cancellable = true)
     private void dynamo$onAnimate(ServerboundSwingPacket serverboundSwingPacket, CallbackInfo ci) {
-        if (player.getVehicle() instanceof CarEntity carEntity) {
-            carEntity.toggleLights();
+        if (player.getVehicle() instanceof VehicleEntity vehicleEntity) {
+            vehicleEntity.toggleLights();
             ci.cancel();
         }
     }
 
     @Inject(method = "handleUseItem", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/network/ServerGamePacketListenerImpl;hasClientLoaded()Z"), cancellable = true)
     private void dynamo$onAnimate(ServerboundUseItemPacket serverboundUseItemPacket, CallbackInfo ci) {
-        if (player.getVehicle() instanceof CarEntity carEntity) {
-            carEntity.honk();
+        if (player.getVehicle() instanceof VehicleEntity vehicleEntity) {
+            vehicleEntity.honk();
             ci.cancel();
         }
     }

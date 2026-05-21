@@ -1,11 +1,6 @@
 package de.tomalbrc.dynamo.impl.mesh;
 
 import de.tomalbrc.dynamo.impl.config.ModConfig;
-import it.unimi.dsi.fastutil.floats.FloatArrayList;
-import it.unimi.dsi.fastutil.ints.IntArrayList;
-
-import java.util.ArrayList;
-import java.util.List;
 
 public class ChunkMeshGenerator {
     private static final int OFFSET = 2;

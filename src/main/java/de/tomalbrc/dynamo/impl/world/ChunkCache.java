@@ -10,7 +10,6 @@ import de.tomalbrc.dynamo.impl.mesh.ChunkMeshes;
 import de.tomalbrc.dynamo.impl.mesh.MeshData;
 import de.tomalbrc.dynamo.impl.mesh.MeshPos;
 import de.tomalbrc.dynamo.impl.physics.ChunkSectionCollisionShape;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Util;
@@ -79,7 +78,7 @@ public class ChunkCache {
         ChunkPos chunkPos = ChunkPos.containing(meshPos.center());
         ChunkMeshes oldMesh = this.chunkMeshes.get(chunkPos.pack());
         MeshData m = oldMesh == null ? null : oldMesh.get(meshPos);
-        MeshData meshData = m != null ? m : ChunkSectionCollisionShape.buildChunkCollisionShape(dynamicWorld.serverLevel, meshPos);
+        MeshData meshData = m != null ? m : ChunkSectionCollisionShape.build(dynamicWorld.serverLevel, meshPos);
         boolean empty = meshData == null || meshData.positions == null || meshData.positions.isEmpty();
 
         if (!empty && (meshData.positions.size() % 3 != 0 || meshData.indices.size() % 3 != 0)) {
@@ -179,7 +178,7 @@ public class ChunkCache {
                 meshPos.minBlockZ() + halfSize
         ), halfSize);
 
-        world.physicsSystem.getBodyInterface().activateBodiesInAaBox(
+        world.physicsSystem.getBodyInterfaceNoLock().activateBodiesInAaBox(
                 box,
                 world.physicsSystem.getDefaultBroadPhaseLayerFilter(DynamicWorld.objLayerMoving),
                 world.physicsSystem.getDefaultLayerFilter(DynamicWorld.objLayerMoving)
@@ -221,7 +220,7 @@ public class ChunkCache {
     }
 
     private Path chunkPath(ChunkPos pos) {
-        return FabricLoader.getInstance().getGameDir().resolve(String.format("dynamo/chunk-%d-%d.dat", pos.x(), pos.z()));
+        return ModConfig.CONFIG_DIR.resolve(String.format("cache/chunk-%d-%d.dat", pos.x(), pos.z()));
     }
 
     public void load(LevelChunk chunk) {

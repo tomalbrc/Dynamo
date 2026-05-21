@@ -3,13 +3,13 @@ package de.tomalbrc.dynamo.impl.command;
 import com.github.stephengold.joltjni.enumerate.EBodyType;
 import com.mojang.brigadier.CommandDispatcher;
 import de.tomalbrc.dynamo.Dynamo;
-import de.tomalbrc.dynamo.impl.entity.Entities;
+import de.tomalbrc.dynamo.impl.config.ModConfig;
+import de.tomalbrc.dynamo.impl.config.VehicleConfigLoader;
 import de.tomalbrc.dynamo.impl.world.DynamicWorldContainer;
 import me.lucko.fabric.api.permissions.v0.Permissions;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.entity.EntitySpawnReason;
 
 import static net.minecraft.commands.Commands.literal;
 
@@ -89,20 +89,14 @@ public class ModCommands {
                     return 0;
                 }));
 
-        rootNode.then(literal("car")
+        rootNode.then(literal("reload")
                 .executes(ctx -> {
-                    var level = ctx.getSource().getLevel();
-                    var world = ((DynamicWorldContainer) level).getDynamicWorld();
-                    var player = ctx.getSource().getPlayer();
-
-                    var car = Entities.CAR.create(level, EntitySpawnReason.COMMAND);
-                    car.setPos(player.position().add(0, 1, 0));
-                    car.setWorld(world);
-                    level.addFreshEntity(car);
-
-                    return 0;
-                }));
-
+                    ModConfig.load();
+                    VehicleConfigLoader.loadAll();
+                    ctx.getSource().sendSuccess(() -> Component.literal("[Dynamo] Reloaded config!"), true);
+                    return 1;
+                })
+        );
 
         dispatcher.register(rootNode);
     }

@@ -14,7 +14,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Collections;
+import java.util.Locale;
+import java.util.Map;
 
 public class ChunkSectionCollisionShape {
     static final int CHUNK_SIZE = ModConfig.getInstance().chunkSize;
@@ -44,7 +46,7 @@ public class ChunkSectionCollisionShape {
         return mesh;
     }
 
-    public static MeshData buildChunkCollisionShape(Level level, MeshPos pos) {
+    public static MeshData build(Level level, MeshPos pos) {
         int baseX = pos.minBlockX();
         int baseZ = pos.minBlockZ();
         int minY = pos.minBlockY();
@@ -52,7 +54,7 @@ public class ChunkSectionCollisionShape {
         int height = maxY - minY;
         assert height == CHUNK_SIZE;
 
-        boolean mesh = ModConfig.getInstance().mesh;
+        boolean smoothMesh = ModConfig.getInstance().smoothMesh;
 
         var additionalRad = 4;
         var additionalRadHalf = additionalRad/2;
@@ -75,7 +77,7 @@ public class ChunkSectionCollisionShape {
         if (!hasSolid)
             return null;
 
-        if (mesh) {
+        if (smoothMesh) {
             return buildSmoothMesh(pos, solid);
         } else {
             return buildBlockMesh(pos, solid);

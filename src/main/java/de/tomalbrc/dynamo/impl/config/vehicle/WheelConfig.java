@@ -14,6 +14,9 @@ public class WheelConfig {
     public float maxHandBrakeTorque = 4000.0f;
     public float maxSteerAngle = 40;
 
+    public float inertia = 10;
+    public float angularDamping = 1;
+
     public Vector3f offset = new Vector3f();
 
     public WheelConfig(Vector3f offset, float maxSteerAngle) {

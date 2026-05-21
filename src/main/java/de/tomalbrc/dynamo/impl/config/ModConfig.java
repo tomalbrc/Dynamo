@@ -1,27 +1,26 @@
 package de.tomalbrc.dynamo.impl.config;
 
-import com.google.gson.*;
+import com.google.gson.Gson;
 import de.tomalbrc.dynamo.Dynamo;
 import net.fabricmc.loader.api.FabricLoader;
 
-import java.io.*;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 
 public class ModConfig {
-    private static final Path CONFIG_FILE_PATH = FabricLoader.getInstance().getConfigDir().resolve(Dynamo.MODID + ".json");
+    public static final Path CONFIG_DIR = FabricLoader.getInstance().getConfigDir().resolve("dynamo");
+    private static final Path CONFIG_FILE_PATH = CONFIG_DIR.resolve(Dynamo.MODID + ".json");
     private static ModConfig instance;
-
-    private static final Gson gson = new GsonBuilder()
-            //.registerTypeHierarchyAdapter(Identifier.class, new SimpleCodecDeserializer<>(Identifier.CODEC))
-            .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_DASHES)
-            .setPrettyPrinting()
-            .create();
+    private static final Gson gson = DynamoJson.createGson();
 
     // entries
 
     public int chunkSize = 16;
-    public boolean mesh = true;
+    public boolean smoothMesh = true;
     public boolean exportMesh = false;
     public PhysicsConfig physics = new PhysicsConfig();
 
