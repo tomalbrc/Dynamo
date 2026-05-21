@@ -1,23 +1,32 @@
 plugins {
     id 'java'
     id 'net.fabricmc.fabric-loom' version '1.15-SNAPSHOT'
+    id 'com.gradleup.shadow' version '9.3.1'
     id 'maven-publish'
 }
 
-version = project.mod_version
+version = project.mod_version + "+" + project.minecraft_version
 group = project.maven_group
 
+
 def libbulletVariants = [
-        "Linux64",
+        //"Linux64",
+        "Linux64_fma",
         "Linux_ARM32hf",
         "Linux_ARM64",
         "MacOSX64",
         "MacOSX_ARM64",
-        "Windows64"
+        //"Windows64",
+        "Windows64_avx2"
 ]
 
 base {
     archivesName = project.archives_base_name
+}
+
+configurations {
+    shade
+    implementation.extendsFrom(shade)
 }
 
 repositories {
@@ -50,8 +59,8 @@ dependencies {
 
     implementation include("io.github.electrostat-lab:snaploader:1.0.0-stable")
     libbulletVariants.each { variant ->
-        implementation("com.github.stephengold:jolt-jni-${variant}:4.3.0")
-        runtimeOnly("com.github.stephengold:jolt-jni-${variant}:4.3.0:ReleaseDp")
+        shade("com.github.stephengold:jolt-jni-${variant}:4.3.0")
+        shade("com.github.stephengold:jolt-jni-${variant}:4.3.0:ReleaseDp")
 
         //implementation include("com.github.stephengold:Libbulletjme-${variant}:22.0.3")
         //runtimeOnly("com.github.stephengold:Libbulletjme-${variant}:22.0.3:SpRelease")
@@ -63,6 +72,21 @@ dependencies {
 
     testImplementation 'com.github.noconnor:junitperf-junit5:1.37.0'
     testRuntimeOnly 'com.github.noconnor:junitperf-junit5:1.37.0'
+}
+
+jar {
+    dependsOn shadowJar
+    from(zipTree(shadowJar.archiveFile)) {
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        exclude 'META-INF/*.SF'
+        exclude 'META-INF/*.DSA'
+        exclude 'META-INF/*.RSA'
+        exclude 'META-INF/maven/**'
+    }
+}
+
+shadowJar {
+    configurations = [project.configurations.shade]
 }
 
 test {
