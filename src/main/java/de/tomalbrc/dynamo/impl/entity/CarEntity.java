@@ -177,6 +177,9 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
         rb1.setLeftWheel(1);
         rb1.setRightWheel(0);
 
+        constraintSettings.getAntiRollBar(0).setStiffness(300f);
+        constraintSettings.getAntiRollBar(1).setStiffness(300f);
+
         WheeledVehicleControllerSettings controllerSettings = new WheeledVehicleControllerSettings();
         controllerSettings.getEngine().setMinRpm(config.engine.minRpm);
         controllerSettings.getEngine().setMaxRpm(config.engine.maxRpm);
@@ -216,8 +219,8 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
             item.set(DataComponents.ITEM_MODEL, wheel.model);
 
             var e = new ItemDisplayElement(item);
-            e.setScale(new Vector3f(wheel.width + 0.4f, wheel.radius + 0.6f, wheel.radius + 0.6f));
-            e.setTranslation(new Vector3f(0, -0.5f, 0));
+            e.setScale(new Vector3f(wheel.width, wheel.radius*2f, wheel.radius*2f));
+            //e.setTranslation(new Vector3f(0, -0.5f, 0));
             e.setTeleportDuration(3);
             e.setInterpolationDuration(3);
             e.ignorePositionUpdates();
@@ -256,9 +259,20 @@ public class CarEntity extends Entity implements PolymerEntity, NoPositionSyncEn
         w.getSuspensionSpring().setStiffness(wheelConfig.suspension.stiffness);
         w.getSuspensionSpring().setDamping(wheelConfig.suspension.damping);
 
+        //w.setLongitudinalFriction(createHighGripCurve());
+        //w.setLateralFriction(createHighGripCurve());
+
         w.setMaxSteerAngle(Mth.DEG_TO_RAD * wheelConfig.maxSteerAngle);
 
         return w;
+    }
+
+    private static LinearCurve createHighGripCurve() {
+        LinearCurve curve = new LinearCurve();
+        curve.addPoint(0.0f, 1.8f);   // at zero slip, max grip
+        curve.addPoint(12.0f, 1.2f);  // moderate drop
+        curve.addPoint(25.0f, 0.8f);  // lower grip at high slip
+        return curve;
     }
 
     @Override

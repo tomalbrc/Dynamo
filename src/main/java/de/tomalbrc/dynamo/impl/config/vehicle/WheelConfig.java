@@ -5,8 +5,8 @@ import net.minecraft.resources.Identifier;
 import org.joml.Vector3f;
 
 public class WheelConfig {
-    public float radius = 1.7f;
-    public float width = 0.5f;
+    public float radius = 1.0f;
+    public float width = 0.6f;
     public Identifier model = Identifier.fromNamespaceAndPath(Dynamo.MODID, "wheels");
     public SuspensionConfig suspension = new SuspensionConfig();
 

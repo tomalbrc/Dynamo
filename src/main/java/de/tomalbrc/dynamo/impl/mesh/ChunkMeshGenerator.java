@@ -30,27 +30,37 @@ public class ChunkMeshGenerator {
     private static void generateBlockFaces(boolean[][][] blocks, int x, int y, int z, MeshData data) {
         int baseIndex = data.positions.size() / 3;
 
+        float ox = x - OFFSET;
+        float oy = y - OFFSET;
+        float oz = z - OFFSET;
+
         float[][] cubeVertices = {
-                {x, y, z}, {x+1, y, z}, {x+1, y, z+1}, {x, y, z+1},  // bottom face
-                {x, y+1, z}, {x+1, y+1, z}, {x+1, y+1, z+1}, {x, y+1, z+1}  // top face
+                {ox,     oy,     oz},     // 0
+                {ox + 1, oy,     oz},     // 1
+                {ox + 1, oy,     oz + 1}, // 2
+                {ox,     oy,     oz + 1}, // 3
+                {ox,     oy + 1, oz},     // 4
+                {ox + 1, oy + 1, oz},     // 5
+                {ox + 1, oy + 1, oz + 1}, // 6
+                {ox,     oy + 1, oz + 1}  // 7
         };
 
         int[][] faceIndices = {
                 {0, 1, 2, 3},  // bottom
-                {4, 5, 6, 7},  // top
-                {0, 1, 5, 4},  // front
-                {2, 3, 7, 6},  // back
-                {1, 2, 6, 5},  // right
+                {4, 7, 6, 5},  // top
+                {0, 4, 5, 1},  // front
+                {3, 2, 6, 7},  // back
+                {1, 5, 6, 2},  // right
                 {0, 3, 7, 4}   // left
         };
 
         int[][] neighborOffsets = {
                 {0, -1, 0},  // bottom
-                {0, 1, 0},   // top
+                {0,  1, 0},  // top
                 {0, 0, -1},  // front
-                {0, 0, 1},   // back
-                {1, 0, 0},   // right
-                {-1, 0, 0}   // left
+                {0, 0,  1},  // back
+                {1, 0,  0},  // right
+                {-1, 0,  0}  // left
         };
 
         for (int face = 0; face < 6; face++) {

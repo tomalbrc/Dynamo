@@ -4,9 +4,9 @@ import com.github.stephengold.joltjni.enumerate.ESpringMode;
 
 public class SuspensionConfig {
     public float minLength = 0.1f;
-    public float maxLength = 0.8f;
+    public float maxLength = 0.7f;
 
     public ESpringMode mode = ESpringMode.StiffnessAndDamping;
     public float stiffness = 6500.f;
-    public float damping = .9f;
+    public float damping = .1f;
 }
