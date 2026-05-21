@@ -21,6 +21,7 @@ public class ModConfig {
 
     public int chunkSize = 16;
     public boolean smoothMesh = true;
+    public float meshSmoothness = 0.2f;
     public boolean exportMesh = false;
     public PhysicsConfig physics = new PhysicsConfig();
 

@@ -3,7 +3,7 @@ package de.tomalbrc.dynamo.impl.config.vehicle;
 import org.joml.Vector3f;
 import java.util.List;
 
-public class CarLightsConfig {
+public class LightsConfig {
     public boolean enabled = true;
     public boolean alwaysEnabled = false;
     public List<Vector3f> lightPositions = List.of(

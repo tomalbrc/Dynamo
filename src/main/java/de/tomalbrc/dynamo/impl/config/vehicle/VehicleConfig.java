@@ -3,17 +3,14 @@ package de.tomalbrc.dynamo.impl.config.vehicle;
 import com.google.gson.annotations.SerializedName;
 import de.tomalbrc.dynamo.Dynamo;
 import net.minecraft.resources.Identifier;
-import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
-import net.minecraft.world.item.ItemStackTemplate;
-import net.minecraft.world.item.Items;
 import org.joml.Vector3f;
 
 import java.util.List;
 
 public class VehicleConfig {
     public Identifier id = Identifier.fromNamespaceAndPath(Dynamo.MODID, "car");
-    public ItemStackTemplate drop = new ItemStackTemplate(Items.STONE, 5);
+    public boolean motorcycle = false;
 
     public float halfWidth = 1.1f;
     public float halfHeight = 0.5f;
@@ -36,7 +33,10 @@ public class VehicleConfig {
 
     public boolean fireResistant = false;
 
-    public CarLightsConfig lights = new CarLightsConfig();
+    public LeaningConfig leaning = new LeaningConfig();
+    public VehicleCollisionTesterConfig collisionTester = new VehicleCollisionTesterConfig();
+
+    public LightsConfig lights = new LightsConfig();
 
     public EngineConfig engine = new EngineConfig();
     public TransmissionConfig transmission = new TransmissionConfig();

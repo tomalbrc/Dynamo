@@ -1,6 +1,6 @@
 package de.tomalbrc.dynamo.impl.entity;
 
-import de.tomalbrc.dynamo.impl.config.vehicle.CarLightsConfig;
+import de.tomalbrc.dynamo.impl.config.vehicle.LightsConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
@@ -20,9 +20,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class VehicleLights {
     private final Map<BlockPos, BlockState> litBlocks = new ConcurrentHashMap<>();
-    private final CarLightsConfig config;
+    private final LightsConfig config;
 
-    public VehicleLights(CarLightsConfig config) {
+    public VehicleLights(LightsConfig config) {
         this.config = config;
     }
 

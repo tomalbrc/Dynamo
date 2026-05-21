@@ -41,8 +41,14 @@ public class ChunkMeshes {
         if (Files.exists(path)) {
             try (var s = new FileInputStream(path.toFile())) {
                 return load(s.readAllBytes());
-            } catch (IOException e) {
-                Dynamo.LOGGER.error("Could not load mesh at {} from file", path, e);
+            } catch (Exception e) {
+                Dynamo.LOGGER.error("Could not load collision mesh at {} from file", path);
+
+                try {
+                    Files.delete(path);
+                } catch (IOException ex) {
+                    Dynamo.LOGGER.error("Could not delete corrupt collision mesh at {}", path);
+                }
             }
         }
 
@@ -102,14 +108,14 @@ public class ChunkMeshes {
                 int posLen = posBuf.size();
                 out.writeInt(posLen);
                 for (int p = 0; p < posLen; p++) {
-                    out.writeFloat(posBuf.get(p));
+                    out.writeFloat(posBuf.getFloat(p));
                 }
 
                 var idxBuf = mesh.indices;
                 int idxLen = idxBuf.size();
                 out.writeInt(idxLen);
                 for (int i = 0; i < idxLen; i++) {
-                    out.writeInt(idxBuf.get(i));
+                    out.writeInt(idxBuf.getInt(i));
                 }
             }
 

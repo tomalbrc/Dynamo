@@ -23,7 +23,7 @@ public class ChunkSectionCollisionShape {
     static final Map<Long, ChunkAccess> CHUNK_ACCESS_MAP = Collections.synchronizedMap(new MapMaker().weakValues().makeMap());
 
     public static MeshData buildSmoothMesh(MeshPos pos, boolean[][][] solid) {
-        var mesh = ChunkMeshGenerator.generateSmoothedMesh(solid, 0.3f);
+        var mesh = ChunkMeshGenerator.generateSmoothedMesh(solid, ModConfig.getInstance().meshSmoothness);
         if (mesh.positions.isEmpty())
             return null;
 
@@ -38,7 +38,7 @@ public class ChunkSectionCollisionShape {
         return mesh;
     }
 
-    public static MeshData buildBlockMesh(MeshPos pos, boolean[][][] solid) {
+    public static MeshData buildBlockMesh(boolean[][][] solid) {
         var mesh = ChunkMeshGenerator.generateMesh(solid);
         if (mesh.positions.isEmpty())
             return null;
@@ -66,7 +66,7 @@ public class ChunkSectionCollisionShape {
             for (int y = 0; y < CHUNK_SIZE + additionalRad; y++) {
                 for (int z = 0; z < CHUNK_SIZE + additionalRad; z++) {
                     tmp.set((baseX + x) - additionalRadHalf, (minY + y) - additionalRadHalf, (baseZ + z) - additionalRadHalf);
-                    BlockState st = CHUNK_ACCESS_MAP.computeIfAbsent(ChunkPos.pack(tmp), k -> level.getChunk(tmp)).getBlockState(tmp);
+                    BlockState st = CHUNK_ACCESS_MAP.computeIfAbsent(ChunkPos.pack(tmp), _ -> level.getChunk(tmp)).getBlockState(tmp);
                     boolean isSolid = !st.is(BlockTags.LEAVES) && !st.getCollisionShape(level, tmp).isEmpty();
                     solid[x][y][z] = isSolid;
                     hasSolid |= isSolid;
@@ -80,7 +80,7 @@ public class ChunkSectionCollisionShape {
         if (smoothMesh) {
             return buildSmoothMesh(pos, solid);
         } else {
-            return buildBlockMesh(pos, solid);
+            return buildBlockMesh(solid);
         }
     }
 }
