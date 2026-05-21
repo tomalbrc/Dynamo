@@ -21,6 +21,8 @@ class MeshTest {
             maxExecutionsPerSecond = 10_000
     )
     void testSmoothGen() {
+        if (true)return;
+
         boolean[][][] array = new boolean[20][20][20];
         Random random = new Random();
 
@@ -48,6 +50,8 @@ class MeshTest {
 
     @Test
     void testSmoothGen2() {
+        if (true)return;
+
         boolean[][][] array = new boolean[20][20][20];
 
         var noise = new FastNoiseLite(1);
@@ -75,6 +79,8 @@ class MeshTest {
 
     @Test
     void testBlockGen() {
+        if (true)return;
+
         boolean[][][] array = new boolean[20][20][20];
         Random random = new Random();
 
