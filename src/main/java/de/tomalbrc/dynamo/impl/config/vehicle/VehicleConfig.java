@@ -48,7 +48,7 @@ public class VehicleConfig {
             new WheelConfig(new Vector3f(-halfWidth - 0.32f, -0.2f, -1.4f), 0)
     );
 
-    @SerializedName("anti_roll_bars")
+    @SerializedName("anti-roll-bars")
     public List<AntiRollBarConfig> antiRollBars = List.of(
             new AntiRollBarConfig(3, 2, 5000f),
             new AntiRollBarConfig(1, 0, 5000f)
