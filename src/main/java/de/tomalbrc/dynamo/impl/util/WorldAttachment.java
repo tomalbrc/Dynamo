@@ -49,7 +49,7 @@ public class WorldAttachment implements HolderAttachment {
             }
         });
 
-        ServerTickEvents.START_WORLD_TICK.register(serverLevel -> {
+        ServerTickEvents.START_LEVEL_TICK.register(serverLevel -> {
             var list = ATTACHMENTS.get(serverLevel);
             if (list != null) {
                 list.removeIf(x -> x.getWorld() == null || Dynamo.SERVER.getLevel(serverLevel.dimension()) == null);

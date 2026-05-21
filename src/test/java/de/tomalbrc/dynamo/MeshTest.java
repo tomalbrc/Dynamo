@@ -86,7 +86,7 @@ class MeshTest {
             }
         }
 
-        var mesh = ChunkMeshGenerator.generateMesh(array, 0, 0, 0);
+        var mesh = ChunkMeshGenerator.generateMesh(array);
 
         assertNotNull(mesh);
         assertNotNull(mesh.positions);

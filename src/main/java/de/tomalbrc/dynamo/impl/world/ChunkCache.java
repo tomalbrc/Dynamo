@@ -75,11 +75,11 @@ public class ChunkCache {
         }
     }
 
-    private @NotNull Body generateBodyWithMesh(DynamicWorld dynamicWorld, MeshPos blockPos) {
-        ChunkPos chunkPos = new ChunkPos(blockPos.center());
-        ChunkMeshes oldMesh = this.chunkMeshes.get(chunkPos.toLong());
-        MeshData m = oldMesh == null ? null : oldMesh.get(blockPos);
-        MeshData meshData = m != null ? m : ChunkSectionCollisionShape.buildChunkCollisionShape(dynamicWorld.serverLevel, blockPos);
+    private @NotNull Body generateBodyWithMesh(DynamicWorld dynamicWorld, MeshPos meshPos) {
+        ChunkPos chunkPos = ChunkPos.containing(meshPos.center());
+        ChunkMeshes oldMesh = this.chunkMeshes.get(chunkPos.pack());
+        MeshData m = oldMesh == null ? null : oldMesh.get(meshPos);
+        MeshData meshData = m != null ? m : ChunkSectionCollisionShape.buildChunkCollisionShape(dynamicWorld.serverLevel, meshPos);
         boolean empty = meshData == null || meshData.positions == null || meshData.positions.isEmpty();
 
         if (!empty && (meshData.positions.size() % 3 != 0 || meshData.indices.size() % 3 != 0)) {
@@ -87,7 +87,7 @@ public class ChunkCache {
         }
 
         if (m == null && !empty) {
-            this.chunkMeshes.computeIfAbsent(chunkPos.toLong(), p -> new ChunkMeshes(chunkPos)).put(blockPos, meshData);
+            this.chunkMeshes.computeIfAbsent(chunkPos.pack(), p -> new ChunkMeshes(chunkPos)).put(meshPos, meshData);
         }
 
         ShapeSettings meshShapeSettings;
@@ -105,7 +105,7 @@ public class ChunkCache {
                 .setMotionType(EMotionType.Static)
                 .setObjectLayer(DynamicWorld.objLayerNonMoving)
                 .setShapeSettings(meshShapeSettings)
-                .setPosition(new RVec3(blockPos.minBlockX(), blockPos.minBlockY(), blockPos.minBlockZ()));
+                .setPosition(new RVec3(meshPos.minBlockX(), meshPos.minBlockY(), meshPos.minBlockZ()));
 
         meshShapeSettings.close();
 
@@ -187,7 +187,7 @@ public class ChunkCache {
     }
 
     public void remove(DynamicWorld world, LevelChunk chunk) {
-        long chunkKey = chunk.getPos().toLong();
+        long chunkKey = chunk.getPos().pack();
         CompletableFuture.runAsync(() -> {
             save(chunk);
             this.chunkMeshes.remove(chunkKey);
@@ -213,7 +213,7 @@ public class ChunkCache {
     }
 
     public void markDirty(MeshPos meshPos) {
-        ChunkMeshes m = this.chunkMeshes.get(new ChunkPos(meshPos.center()).toLong());
+        ChunkMeshes m = this.chunkMeshes.get(ChunkPos.containing(meshPos.center()).pack());
         if (m != null) {
             m.remove(meshPos);
         }
@@ -221,7 +221,7 @@ public class ChunkCache {
     }
 
     private Path chunkPath(ChunkPos pos) {
-        return FabricLoader.getInstance().getGameDir().resolve(String.format("dynamo/chunk-%d-%d.dat", pos.x, pos.z));
+        return FabricLoader.getInstance().getGameDir().resolve(String.format("dynamo/chunk-%d-%d.dat", pos.x(), pos.z()));
     }
 
     public void load(LevelChunk chunk) {
@@ -229,7 +229,7 @@ public class ChunkCache {
         if (Files.exists(p)) {
             ChunkMeshes m = ChunkMeshes.load(p);
             if (m != null) {
-                chunkMeshes.put(chunk.getPos().toLong(), m);
+                chunkMeshes.put(chunk.getPos().pack(), m);
             }
         }
     }
@@ -245,7 +245,7 @@ public class ChunkCache {
             }
         }
 
-        ChunkMeshes m = chunkMeshes.get(chunk.getPos().toLong());
+        ChunkMeshes m = chunkMeshes.get(chunk.getPos().pack());
         if (m != null) {
             byte[] data = m.save();
             if (data != null && data.length > 0) {

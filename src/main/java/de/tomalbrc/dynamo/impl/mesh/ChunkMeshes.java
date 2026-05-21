@@ -90,8 +90,8 @@ public class ChunkMeshes {
              DataOutputStream out = new DataOutputStream(baos)) {
 
             out.writeInt(version);
-            out.writeInt(chunkPos.x);
-            out.writeInt(chunkPos.z);
+            out.writeInt(chunkPos.x());
+            out.writeInt(chunkPos.z());
 
             out.writeInt(meshes.size());
             for (Map.Entry<Long, MeshData> entry : meshes.entrySet()) {

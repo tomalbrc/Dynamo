@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-    id 'fabric-loom' version '1.14-SNAPSHOT'
+    id 'net.fabricmc.fabric-loom' version '1.15-SNAPSHOT'
     id 'maven-publish'
 }
 
@@ -31,30 +31,27 @@ repositories {
 
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    mappings loom.officialMojangMappings()
-    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
-    modImplementation ("eu.pb4:polymer-core:${project.polymer_version}")
-    modImplementation ("eu.pb4:polymer-blocks:${project.polymer_version}")
-    modImplementation ("eu.pb4:polymer-resource-pack:${project.polymer_version}")
-    modImplementation ("eu.pb4:polymer-resource-pack-extras:${project.polymer_version}")
-    modImplementation ("eu.pb4:polymer-virtual-entity:${project.polymer_version}")
-    modImplementation ("eu.pb4:polymer-networking:${project.polymer_version}")
-    modImplementation ("eu.pb4:polymer-autohost:${project.polymer_version}")
-    modImplementation ("eu.pb4:polymer-sound-patcher:${project.polymer_version}")
-    modImplementation include("eu.pb4:sgui:${project.sgui_version}")
-    modImplementation include('me.lucko:fabric-permissions-api:0.6.1')
+    implementation ("eu.pb4:polymer-core:${project.polymer_version}")
+    implementation ("eu.pb4:polymer-blocks:${project.polymer_version}")
+    implementation ("eu.pb4:polymer-resource-pack:${project.polymer_version}")
+    implementation ("eu.pb4:polymer-resource-pack-extras:${project.polymer_version}")
+    implementation ("eu.pb4:polymer-virtual-entity:${project.polymer_version}")
+    implementation ("eu.pb4:polymer-networking:${project.polymer_version}")
+    implementation ("eu.pb4:polymer-autohost:${project.polymer_version}")
+    implementation ("eu.pb4:polymer-sound-patcher:${project.polymer_version}")
+    implementation include("eu.pb4:sgui:${project.sgui_version}")
+    implementation include('me.lucko:fabric-permissions-api:0.7.0')
 
-    modImplementation include("de.tomalbrc:blockbench-import-library:${project.bil_version}")
-
-    implementation("com.hypixel.hytale:Server:1.0.0")
+    implementation include("de.tomalbrc:blockbench-import-library:${project.bil_version}")
 
     implementation include("io.github.electrostat-lab:snaploader:1.0.0-stable")
     libbulletVariants.each { variant ->
-        implementation("com.github.stephengold:jolt-jni-${variant}:3.5.2")
-        runtimeOnly("com.github.stephengold:jolt-jni-${variant}:3.5.2:ReleaseDp")
+        implementation("com.github.stephengold:jolt-jni-${variant}:4.3.0")
+        runtimeOnly("com.github.stephengold:jolt-jni-${variant}:4.3.0:ReleaseDp")
 
         //implementation include("com.github.stephengold:Libbulletjme-${variant}:22.0.3")
         //runtimeOnly("com.github.stephengold:Libbulletjme-${variant}:22.0.3:SpRelease")
@@ -67,7 +64,6 @@ dependencies {
     testImplementation 'com.github.noconnor:junitperf-junit5:1.37.0'
     testRuntimeOnly 'com.github.noconnor:junitperf-junit5:1.37.0'
 }
-
 
 test {
     useJUnitPlatform()
@@ -87,7 +83,7 @@ processResources {
     }
 }
 
-def targetJavaVersion = 21
+def targetJavaVersion = 25
 tasks.withType(JavaCompile).configureEach {
     it.options.encoding = "UTF-8"
     if (targetJavaVersion >= 10 || JavaVersion.current().isJava10Compatible()) {

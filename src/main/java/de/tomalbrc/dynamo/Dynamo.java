@@ -6,8 +6,8 @@ import com.github.stephengold.joltjni.enumerate.EMotionType;
 import com.mojang.logging.LogUtils;
 import de.tomalbrc.bil.core.model.Model;
 import de.tomalbrc.dynamo.api.event.BlockEvents;
-import de.tomalbrc.dynamo.impl.entity.Entities;
 import de.tomalbrc.dynamo.impl.command.ModCommands;
+import de.tomalbrc.dynamo.impl.entity.Entities;
 import de.tomalbrc.dynamo.impl.mesh.Shaper;
 import de.tomalbrc.dynamo.impl.model.Loader;
 import de.tomalbrc.dynamo.impl.model.Models;
@@ -22,9 +22,9 @@ import eu.pb4.polymer.virtualentity.api.elements.BlockDisplayElement;
 import eu.pb4.polymer.virtualentity.api.elements.ItemDisplayElement;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLevelEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Items;
@@ -61,10 +61,10 @@ public class Dynamo implements ModInitializer {
         ModCommands.register();
         WorldAttachment.registerEventHandler();
 
-        ServerWorldEvents.LOAD.register((minecraftServer, serverLevel) -> {
+        ServerLevelEvents.LOAD.register((minecraftServer, serverLevel) -> {
             ((DynamicWorldContainer)serverLevel).setDynamicWorld(new DynamicWorld(serverLevel));
         });
-        ServerWorldEvents.UNLOAD.register((minecraftServer, serverLevel) -> {
+        ServerLevelEvents.UNLOAD.register((minecraftServer, serverLevel) -> {
             var world = ((DynamicWorldContainer)serverLevel).getDynamicWorld();
             if (world != null)
                 world.close();
@@ -76,7 +76,7 @@ public class Dynamo implements ModInitializer {
             PHYSICS.shutdownNow();
         });
 
-        ServerTickEvents.START_WORLD_TICK.register(level -> {
+        ServerTickEvents.START_LEVEL_TICK.register(level -> {
             var world = ((DynamicWorldContainer) level).getDynamicWorld();
             world.tick(level);
 
@@ -92,7 +92,7 @@ public class Dynamo implements ModInitializer {
             ((DynamicWorldContainer) level).getDynamicWorld().updateBlock(level, level.getBlockState(pos), pos);
         });
 
-        ServerChunkEvents.CHUNK_LOAD.register((level, chunk) -> {
+        ServerChunkEvents.CHUNK_LOAD.register((level, chunk, gen) -> {
             ((DynamicWorldContainer) level).getDynamicWorld().loadChunk(level, chunk);
         });
 
