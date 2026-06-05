@@ -53,8 +53,6 @@ public class Dynamo implements ModInitializer {
     public void onInitialize() {
         PolymerResourcePackUtils.addModAssets(MODID);
 
-        Loader.load("car112").ifPresent(model -> Models.put("car112", model));
-
         NativeLoader.load();
         initJolt();
 

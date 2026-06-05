@@ -95,7 +95,7 @@ public class VehicleEntity extends Entity implements PolymerEntity, NoPositionSy
         this.chassis.setScale(new Vector3f(this.config.halfWidth, this.config.halfHeight, this.config.halfLength).mul(2.f));
         this.chassis.ignorePositionUpdates();
 
-        this.holder = new SimpleAnimatedHolder(Models.get("car"));
+        this.holder = new SimpleAnimatedHolder(Models.get(config.model));
 
         InteractionElement interactionElement = InteractionElement.redirect(this);
         interactionElement.setWidth(Math.max(config.halfWidth, config.halfLength) * 2f);
