@@ -10,6 +10,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
@@ -29,7 +30,7 @@ public class WorldAttachment implements HolderAttachment {
 
     public static void registerEventHandler() {
         ServerEntityEvents.ENTITY_LOAD.register((entity, serverLevel) -> {
-            if (entity.getType() == EntityType.PLAYER) {
+            if (entity.getType() == EntityTypes.PLAYER) {
                 var list = ATTACHMENTS.get(serverLevel);
                 if (list != null) {
                     for (WorldAttachment attachment : list) {
@@ -39,7 +40,7 @@ public class WorldAttachment implements HolderAttachment {
             }
         });
         ServerEntityEvents.ENTITY_UNLOAD.register((entity, serverLevel) -> {
-            if (entity.getType() == EntityType.PLAYER) {
+            if (entity.getType() == EntityTypes.PLAYER) {
                 var list = ATTACHMENTS.get(serverLevel);
                 if (list != null) {
                     for (WorldAttachment attachment : list) {

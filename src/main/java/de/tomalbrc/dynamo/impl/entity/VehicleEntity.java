@@ -39,6 +39,7 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.PositionMoveRotation;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Input;
@@ -556,7 +557,7 @@ public class VehicleEntity extends Entity implements PolymerEntity, NoPositionSy
 
     @Override
     public EntityType<?> getPolymerEntityType(PacketContext packetContext) {
-        return EntityType.SLIME;
+        return EntityTypes.SLIME;
     }
 
     public void reset() {
