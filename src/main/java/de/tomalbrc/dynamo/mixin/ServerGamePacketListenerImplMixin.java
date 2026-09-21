@@ -1,8 +1,8 @@
 package de.tomalbrc.dynamo.mixin;
 
 import de.tomalbrc.dynamo.impl.entity.VehicleEntity;
+import net.minecraft.network.protocol.game.ServerboundAttackPacket;
 import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
-import net.minecraft.network.protocol.game.ServerboundSwingPacket;
 import net.minecraft.network.protocol.game.ServerboundUseItemPacket;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
@@ -26,8 +26,8 @@ public class ServerGamePacketListenerImplMixin {
         }
     }
 
-    @Inject(method = "handleAnimate", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerPlayer;resetLastActionTime()V"), cancellable = true)
-    private void dynamo$onAnimate(ServerboundSwingPacket serverboundSwingPacket, CallbackInfo ci) {
+    @Inject(method = "handleAttack", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerPlayer;resetLastActionTime()V"), cancellable = true)
+    private void dynamo$onAnimate(ServerboundAttackPacket packet, CallbackInfo ci) {
         if (player.getVehicle() instanceof VehicleEntity vehicleEntity) {
             vehicleEntity.toggleLights();
             ci.cancel();
@@ -35,7 +35,7 @@ public class ServerGamePacketListenerImplMixin {
     }
 
     @Inject(method = "handleUseItem", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/network/ServerGamePacketListenerImpl;hasClientLoaded()Z"), cancellable = true)
-    private void dynamo$onAnimate(ServerboundUseItemPacket serverboundUseItemPacket, CallbackInfo ci) {
+    private void dynamo$onAnimate(ServerboundUseItemPacket packet, CallbackInfo ci) {
         if (player.getVehicle() instanceof VehicleEntity vehicleEntity) {
             vehicleEntity.honk();
             ci.cancel();

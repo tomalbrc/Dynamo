@@ -9,7 +9,7 @@ version = project.mod_version + "+" + project.minecraft_version
 group = project.maven_group
 
 
-def libbulletVariants = [
+def joltPlatforms = [
         "Linux64",
         "Linux64_fma",
         "Linux_ARM32hf",
@@ -58,9 +58,9 @@ dependencies {
     implementation include("de.tomalbrc:blockbench-import-library:${project.bil_version}")
 
     implementation include("io.github.electrostat-lab:snaploader:1.0.0-stable")
-    libbulletVariants.each { variant ->
-        shade("com.github.stephengold:jolt-jni-${variant}:4.3.0")
-        shade("com.github.stephengold:jolt-jni-${variant}:4.3.0:ReleaseDp")
+    joltPlatforms.each { variant ->
+        shade("com.github.stephengold:jolt-jni-${variant}:6.0.0")
+        shade("com.github.stephengold:jolt-jni-${variant}:6.0.0:ReleaseDp")
 
         //implementation include("com.github.stephengold:Libbulletjme-${variant}:22.0.3")
         //runtimeOnly("com.github.stephengold:Libbulletjme-${variant}:22.0.3:SpRelease")

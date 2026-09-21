@@ -37,10 +37,7 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.EntityTypes;
-import net.minecraft.world.entity.PositionMoveRotation;
+import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Input;
 import net.minecraft.world.entity.player.Player;
@@ -455,15 +452,15 @@ public class VehicleEntity extends Entity implements PolymerEntity, NoPositionSy
 
     public void updatePos(Quaternionf quat) {
         List<Packet<? super @NotNull ClientGamePacketListener>> packets = new ArrayList<>();
-        var pos1 = (new ClientboundEntityPositionSyncPacket(this.getId(), new PositionMoveRotation(chassis.getCurrentPos(), chassis.getCurrentPos(), 0f, 0f), false));
-        var pos2 = (new ClientboundEntityPositionSyncPacket(this.chassis.getEntityId(), new PositionMoveRotation(chassis.getCurrentPos(), chassis.getCurrentPos(), 0f, 0f), false));
+        var pos1 = (new ClientboundEntityPositionSyncPacket(this.getId(), new PositionPath.Linear(chassis.getCurrentPos()), 0f, 0f, false));
+        var pos2 = (new ClientboundEntityPositionSyncPacket(this.chassis.getEntityId(), new PositionPath.Linear(chassis.getCurrentPos()), 0f, 0f, false));
         packets.add(pos1);
         packets.add(pos2);
 
         for (VirtualElement element : this.holder.getElements()) {
             if (element instanceof GenericEntityElement entityElement) {
                 var id = entityElement.getEntityId();
-                packets.add(new ClientboundEntityPositionSyncPacket(id, new PositionMoveRotation(element.getCurrentPos(), element.getCurrentPos(), 0f, 0f), false));
+                packets.add(new ClientboundEntityPositionSyncPacket(id, new PositionPath.Linear(element.getCurrentPos()), 0f, 0f, false));
             }
         }
 
