@@ -10,7 +10,6 @@ import de.tomalbrc.dynamo.impl.command.ModCommands;
 import de.tomalbrc.dynamo.impl.config.VehicleConfigLoader;
 import de.tomalbrc.dynamo.impl.entity.Entities;
 import de.tomalbrc.dynamo.impl.mesh.Shaper;
-import de.tomalbrc.dynamo.impl.model.Loader;
 import de.tomalbrc.dynamo.impl.model.Models;
 import de.tomalbrc.dynamo.impl.physics.DynamicElement;
 import de.tomalbrc.dynamo.impl.util.NativeLoader;
@@ -91,7 +90,8 @@ public class Dynamo implements ModInitializer {
 
         
         BlockEvents.Block.BLOCK_UPDATE.register((level, pos, blockState, blockPos) -> {
-            ((DynamicWorldContainer) level).getDynamicWorld().updateBlock(level, level.getBlockState(pos), pos);
+            if (!level.isClientSide())
+                ((DynamicWorldContainer) level).getDynamicWorld().updateBlock(level, level.getBlockState(pos), pos);
         });
 
         ServerChunkEvents.CHUNK_LOAD.register((level, chunk, gen) -> {
